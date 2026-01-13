@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ImageX - Visual Explorer</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        body { margin: 0; overflow: hidden; font-family: sans-serif; }
+        #app { display: flex; height: 100vh; }
+        #sidebar { width: 300px; background: #2c3e50; color: white; padding: 20px; display: flex; flex-direction: column; }
+        #main { flex: 1; position: relative; background: #ecf0f1; overflow: hidden; }
+        #map-container { width: 100%; height: 100%; position: absolute; }
+        input, button { width: 100%; margin-bottom: 10px; padding: 10px; box-sizing: border-box; }
+        .image-node { position: absolute; transition: all 0.5s ease; cursor: pointer; border: 2px solid transparent; }
+        .image-node:hover { z-index: 1000; transform: scale(1.5); border-color: #3498db; }
+        .image-node img { width: 100%; height: 100%; object-fit: cover; }
+    </style>
+    <!-- Load TensorFlow.js and MobileNet -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.14.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.1/dist/mobilenet.min.js"></script>
+</head>
+<body>
+    <div id="app">
+        <div id="sidebar">
+            <h2>ImageX (GPU Mode)</h2>
+            <input type="text" id="folder-path" placeholder="Enter folder path (e.g. C:/Images)">
+            <button onclick="scanFolder()">Scan Folder</button>
+            <hr>
+            <input type="text" id="search-input" placeholder="Search keywords...">
+            <button onclick="searchImages()">Search</button>
+            <div id="status">Ready</div>
+            <div id="progress" style="margin-top:10px; font-size: 0.8em; color: #bdc3c7;"></div>
+        </div>
+        <div id="main">
+            <div id="map-container"></div>
+        </div>
+    </div>
+    <script src="js/app.js"></script>
+</body>
+</html>
