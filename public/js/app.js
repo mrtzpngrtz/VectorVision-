@@ -1,5 +1,6 @@
 let images = [];
-let model = null;
+let featureModel = null;
+let tagModel = null;
 const mapContainer = document.getElementById('map-container');
 const statusDiv = document.getElementById('status');
 const progressDiv = document.getElementById('progress');
@@ -124,11 +125,13 @@ async function scanFolder() {
 
 async function processImagesBrowser(imageList) {
     try {
-        if (!model) {
-            statusDiv.textContent = 'Loading MobileNet (GPU)...';
-            // Use 'mobilenet' global from CDN script
-            model = await mobilenet.load(); 
-            console.log('Model loaded');
+        if (!featureModel) {
+            statusDiv.textContent = 'Loading AI Models (GPU)...';
+            // Load MobileNet for Sorting
+            featureModel = await mobilenet.load({ version: 2, alpha: 1.0 });
+            // Load COCO-SSD for Tagging
+            tagModel = await cocoSsd.load();
+            console.log('Models loaded');
         }
 
         const featureVectors = [];
@@ -152,15 +155,15 @@ async function processImagesBrowser(imageList) {
             try {
                 const imgEl = await loadImage(imgData.url);
                 
-                // Extract features
-                // infer(img, true) returns embeddings (1024D for MobileNet v1/v2)
-                const activation = await model.infer(imgEl, true);
-                const features = await activation.data(); // Float32Array
-                activation.dispose(); // Cleanup tensor
+                // 1. Extract features for Map (MobileNet)
+                const activation = await featureModel.infer(imgEl, true);
+                const features = await activation.data(); 
+                activation.dispose(); 
                 
-                // Get keywords for search
-                const predictions = await model.classify(imgEl);
-                imgData.keywords = predictions;
+                // 2. Extract tags for Search (COCO-SSD)
+                const detections = await tagModel.detect(imgEl);
+                // Map to compatible format
+                imgData.keywords = detections.map(d => ({ className: d.class, probability: d.score }));
                 
                 featureVectors.push(Array.from(features));
                 imgData.features = Array.from(features);
@@ -180,11 +183,13 @@ async function processImagesBrowser(imageList) {
         await new Promise(r => setTimeout(r, 100)); // UI refresh
 
         if (featureVectors.length > 0) {
-            const gridW = Math.ceil(Math.sqrt(featureVectors.length));
-            const gridH = Math.ceil(Math.sqrt(featureVectors.length));
+            // Increase grid size to reduce stacking. 
+            // sqrt(N) * 1.5 gives a sparser map.
+            const gridSize = Math.ceil(Math.sqrt(featureVectors.length) * 1.5);
             
             const inputDim = featureVectors[0].length;
-            const som = new SimpleSOM(Math.min(20, gridW), Math.min(20, gridH), inputDim, featureVectors.length * 5);
+            // Use larger grid, slightly fewer iterations to keep it fast
+            const som = new SimpleSOM(gridSize, gridSize, inputDim, featureVectors.length * 2);
             som.train(featureVectors);
 
             // Assign coordinates
@@ -209,36 +214,84 @@ async function processImagesBrowser(imageList) {
 function displayImages(imageList) {
     mapContainer.innerHTML = '';
     
-    // Determine grid size
+    // Grid Collision Avoidance (Spiral Search)
+    const occupied = {}; // Map "x,y" to true
+    
+    // Determine bounds to calculate cell size
     const xs = imageList.map(i => i.x).filter(x => x !== undefined);
     const ys = imageList.map(i => i.y).filter(y => y !== undefined);
-    const maxX = Math.max(...xs, 1);
-    const maxY = Math.max(...ys, 1);
+    // Initial max, will grow as we spread
+    let maxX = Math.max(...xs, 1); 
+    let maxY = Math.max(...ys, 1);
+    
+    // Assign final coordinates
+    imageList.forEach(img => {
+        if (img.x === undefined) return;
+        
+        let cx = img.x;
+        let cy = img.y;
+        let radius = 0;
+        let found = false;
+        
+        // Spiral out until empty spot found
+        // Max radius 50 to prevent infinite loop
+        while (radius < 50 && !found) {
+            // Check points in square radius
+            for (let i = -radius; i <= radius; i++) {
+                for (let j = -radius; j <= radius; j++) {
+                    // Only check the perimeter of the current radius (optimization)
+                    if (Math.abs(i) !== radius && Math.abs(j) !== radius) continue;
+                    
+                    const testX = cx + i;
+                    const testY = cy + j;
+                    const key = `${testX},${testY}`;
+                    
+                    if (!occupied[key]) {
+                        occupied[key] = true;
+                        img.finalX = testX;
+                        img.finalY = testY;
+                        found = true;
+                        
+                        // Update bounds
+                        maxX = Math.max(maxX, testX);
+                        maxY = Math.max(maxY, testY);
+                        break;
+                    }
+                }
+                if (found) break;
+            }
+            radius++;
+        }
+        // Fallback if super crowded (stack)
+        if (!found) {
+            img.finalX = cx;
+            img.finalY = cy;
+        }
+    });
     
     const containerW = mapContainer.clientWidth;
     const containerH = mapContainer.clientHeight;
     
-    const cellW = containerW / (maxX + 1);
-    const cellH = containerH / (maxY + 1);
+    // Recalculate cell size based on new spread bounds
+    const cellW = containerW / (maxX + 2);
+    const cellH = containerH / (maxY + 2);
 
     imageList.forEach((img, index) => {
-        if (img.x === undefined) return;
+        if (img.finalX === undefined) return;
 
         const el = document.createElement('div');
         el.className = 'image-node';
-        el.style.width = `${Math.min(100, cellW * 0.9)}px`;
-        el.style.height = `${Math.min(100, cellH * 0.9)}px`;
+        // Size: slightly smaller than cell to leave gap
+        const size = Math.min(150, Math.min(cellW, cellH) * 0.9);
+        el.style.width = `${size}px`;
+        el.style.height = `${size}px`;
         
-        // Jitter slightly to see overlapping
-        const jitterX = (Math.random() - 0.5) * (cellW * 0.2);
-        const jitterY = (Math.random() - 0.5) * (cellH * 0.2);
-        
-        const x = img.x * cellW + (cellW * 0.05) + jitterX;
-        const y = img.y * cellH + (cellH * 0.05) + jitterY;
+        const x = img.finalX * cellW + (cellW - size) / 2;
+        const y = img.finalY * cellH + (cellH - size) / 2;
         
         el.style.left = `${x}px`;
         el.style.top = `${y}px`;
-        el.title = img.keywords ? img.keywords.map(k => k.className).join(', ') : img.name;
+        el.title = img.keywords ? img.keywords.map(k => `${k.className} (${Math.round(k.probability*100)}%)`).join(', ') : img.name;
         
         const imageElement = document.createElement('img');
         imageElement.src = img.url;
@@ -264,3 +317,86 @@ function searchImages() {
     statusDiv.textContent = `Found ${filtered.length} matches for "${keyword}".`;
     displayImages(filtered);
 }
+
+// --- Pan & Zoom Logic ---
+const mainContainer = document.getElementById('main');
+let scale = 1;
+let panning = false;
+let pointX = 0;
+let pointY = 0;
+let startX = 0;
+let startY = 0;
+
+function setTransform() {
+    mapContainer.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
+}
+
+mainContainer.addEventListener('mousedown', (e) => {
+    // Only left click
+    if (e.button !== 0) return;
+    e.preventDefault();
+    startX = e.clientX - pointX;
+    startY = e.clientY - pointY;
+    panning = true;
+});
+
+mainContainer.addEventListener('mousemove', (e) => {
+    if (!panning) return;
+    e.preventDefault();
+    pointX = e.clientX - startX;
+    pointY = e.clientY - startY;
+    setTransform();
+});
+
+mainContainer.addEventListener('mouseup', () => {
+    panning = false;
+});
+
+mainContainer.addEventListener('mouseleave', () => {
+    panning = false;
+});
+
+mainContainer.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    
+    const xs = (e.clientX - mainContainer.getBoundingClientRect().left - pointX) / scale;
+    const ys = (e.clientY - mainContainer.getBoundingClientRect().top - pointY) / scale;
+    
+    const delta = -e.deltaY;
+    const factor = delta > 0 ? 1.1 : 0.9;
+    
+    let newScale = scale * factor;
+    // Limit scale
+    newScale = Math.min(Math.max(0.1, newScale), 5);
+    
+    pointX -= xs * (newScale - scale);
+    pointY -= ys * (newScale - scale);
+    scale = newScale;
+    
+    setTransform();
+});
+
+// Initial Center
+function centerMap() {
+    // Center initially (approx)
+    const containerW = mainContainer.clientWidth;
+    const containerH = mainContainer.clientHeight;
+    // Map is 4000x4000
+    // We want to center it:
+    // (ContainerW - MapW*Scale) / 2
+    
+    // Start zoomed out to fit?
+    scale = Math.min(containerW/4000, containerH/4000);
+    // Or just start at 0.1?
+    scale = 0.2; 
+    
+    pointX = (containerW - 4000 * scale) / 2;
+    pointY = (containerH - 4000 * scale) / 2;
+    
+    setTransform();
+}
+
+// Call centerMap on load (or after display)
+// We'll call it when images are displayed for the first time if needed, 
+// or just initialize it now.
+centerMap();
