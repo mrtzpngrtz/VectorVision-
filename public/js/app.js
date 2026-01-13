@@ -64,10 +64,6 @@ class SimpleSOM {
                     }
                 }
             }
-            
-            if (i % 100 === 0) {
-                // Progress could be reported here
-            }
         }
     }
 
@@ -96,9 +92,23 @@ class SimpleSOM {
     }
 }
 
+let dbData = {};
+
 async function scanFolder() {
     const folderPath = document.getElementById('folder-path').value;
     if (!folderPath) return alert('Please enter a folder path');
+
+    statusDiv.textContent = 'Loading Database...';
+    try {
+        const dbRes = await fetch('/api/load');
+        const dbJson = await dbRes.json();
+        if (dbJson.data) dbData = dbJson.data; 
+        if (Array.isArray(dbData)) {
+            const map = {};
+            dbData.forEach(item => map[item.path] = item);
+            dbData = map;
+        }
+    } catch(e) { console.error('DB Load Error', e); }
 
     statusDiv.textContent = 'Scanning files...';
     
@@ -112,33 +122,40 @@ async function scanFolder() {
         const data = await response.json();
         if (data.error) throw new Error(data.error);
         
-        images = data.images;
-        statusDiv.textContent = `Found ${images.length} images. Starting GPU analysis...`;
+        images = data.images.map(img => {
+            if (dbData[img.path]) {
+                return { ...img, ...dbData[img.path] };
+            }
+            return img;
+        });
+
+        const toAnalyze = images.filter(img => !img.features);
         
-        // Start processing
-        processImagesBrowser(images);
+        if (toAnalyze.length > 0) {
+            statusDiv.textContent = `Found ${images.length} images (${toAnalyze.length} new). Analyzing new...`;
+            processImagesBrowser(toAnalyze);
+        } else {
+            statusDiv.textContent = `Loaded ${images.length} images from DB. Displaying...`;
+            displayImages(images);
+        }
         
     } catch (error) {
         statusDiv.textContent = 'Error: ' + error.message;
     }
 }
 
-async function processImagesBrowser(imageList) {
+async function processImagesBrowser(toAnalyzeList) {
     try {
         if (!featureModel) {
             statusDiv.textContent = 'Loading AI Models (GPU)...';
-            // Load MobileNet for Sorting
             featureModel = await mobilenet.load({ version: 2, alpha: 1.0 });
-            // Load COCO-SSD for Tagging
             tagModel = await cocoSsd.load();
             console.log('Models loaded');
         }
 
-        const featureVectors = [];
         let processedCount = 0;
-        const total = imageList.length;
+        const total = toAnalyzeList.length;
 
-        // Helper to load image
         const loadImage = (url) => new Promise((resolve, reject) => {
             const img = new Image();
             img.crossOrigin = 'anonymous';
@@ -147,25 +164,20 @@ async function processImagesBrowser(imageList) {
             img.onerror = reject;
         });
 
-        statusDiv.textContent = `Analyzing ${total} images on GPU...`;
+        statusDiv.textContent = `Analyzing ${total} new images on GPU...`;
 
-        // Process sequentially to avoid memory issues, but could be batched
         for (let i = 0; i < total; i++) {
-            const imgData = imageList[i];
+            const imgData = toAnalyzeList[i];
             try {
-                const imgEl = await loadImage(imgData.url);
+                // Use thumbnail for analysis to save memory/speed
+                const imgEl = await loadImage(imgData.thumbUrl);
                 
-                // 1. Extract features for Map (MobileNet)
                 const activation = await featureModel.infer(imgEl, true);
                 const features = await activation.data(); 
                 activation.dispose(); 
                 
-                // 2. Extract tags for Search (COCO-SSD)
                 const detections = await tagModel.detect(imgEl);
-                // Map to compatible format
                 imgData.keywords = detections.map(d => ({ className: d.class, probability: d.score }));
-                
-                featureVectors.push(Array.from(features));
                 imgData.features = Array.from(features);
                 
                 processedCount++;
@@ -174,35 +186,48 @@ async function processImagesBrowser(imageList) {
             } catch (err) {
                 console.error('Error analyzing image:', err);
             }
-            
-            // Allow UI update
             if (i % 5 === 0) await new Promise(r => requestAnimationFrame(r));
         }
 
-        statusDiv.textContent = 'Training Map (SOM)...';
-        await new Promise(r => setTimeout(r, 100)); // UI refresh
+        // Re-train SOM with ALL images
+        const validImages = images.filter(img => img.features);
+        const vectors = validImages.map(img => img.features);
 
-        if (featureVectors.length > 0) {
-            // Increase grid size to reduce stacking. 
-            // sqrt(N) * 1.5 gives a sparser map.
-            const gridSize = Math.ceil(Math.sqrt(featureVectors.length) * 1.5);
-            
-            const inputDim = featureVectors[0].length;
-            // Use larger grid, slightly fewer iterations to keep it fast
-            const som = new SimpleSOM(gridSize, gridSize, inputDim, featureVectors.length * 2);
-            som.train(featureVectors);
+        if (vectors.length > 0) {
+            statusDiv.textContent = 'Training Map (SOM)...';
+            await new Promise(r => setTimeout(r, 100));
 
-            // Assign coordinates
-            imageList.forEach(img => {
-                if (img.features) {
-                    const pos = som.getBMU(img.features);
-                    img.x = pos.x;
-                    img.y = pos.y;
-                }
+            const gridSize = Math.ceil(Math.sqrt(vectors.length) * 1.5);
+            const inputDim = vectors[0].length;
+            const som = new SimpleSOM(gridSize, gridSize, inputDim, Math.max(1000, vectors.length * 2));
+            som.train(vectors);
+
+            validImages.forEach((img, i) => {
+                const pos = som.getBMU(vectors[i]);
+                img.x = pos.x;
+                img.y = pos.y;
             });
             
-            statusDiv.textContent = 'Analysis Complete.';
-            displayImages(imageList);
+            // Save to DB
+            const dataToSave = {};
+            validImages.forEach(img => {
+                dataToSave[img.path] = {
+                    path: img.path,
+                    features: img.features,
+                    keywords: img.keywords,
+                    x: img.x,
+                    y: img.y
+                };
+            });
+            
+            await fetch('/api/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ data: dataToSave })
+            });
+            
+            statusDiv.textContent = 'Analysis Complete & Saved.';
+            displayImages(images);
         }
 
     } catch (error) {
@@ -215,16 +240,12 @@ function displayImages(imageList) {
     mapContainer.innerHTML = '';
     
     // Grid Collision Avoidance (Spiral Search)
-    const occupied = {}; // Map "x,y" to true
-    
-    // Determine bounds to calculate cell size
+    const occupied = {}; 
     const xs = imageList.map(i => i.x).filter(x => x !== undefined);
     const ys = imageList.map(i => i.y).filter(y => y !== undefined);
-    // Initial max, will grow as we spread
     let maxX = Math.max(...xs, 1); 
     let maxY = Math.max(...ys, 1);
     
-    // Assign final coordinates
     imageList.forEach(img => {
         if (img.x === undefined) return;
         
@@ -233,26 +254,18 @@ function displayImages(imageList) {
         let radius = 0;
         let found = false;
         
-        // Spiral out until empty spot found
-        // Max radius 50 to prevent infinite loop
         while (radius < 50 && !found) {
-            // Check points in square radius
             for (let i = -radius; i <= radius; i++) {
                 for (let j = -radius; j <= radius; j++) {
-                    // Only check the perimeter of the current radius (optimization)
                     if (Math.abs(i) !== radius && Math.abs(j) !== radius) continue;
-                    
                     const testX = cx + i;
                     const testY = cy + j;
                     const key = `${testX},${testY}`;
-                    
                     if (!occupied[key]) {
                         occupied[key] = true;
                         img.finalX = testX;
                         img.finalY = testY;
                         found = true;
-                        
-                        // Update bounds
                         maxX = Math.max(maxX, testX);
                         maxY = Math.max(maxY, testY);
                         break;
@@ -262,17 +275,17 @@ function displayImages(imageList) {
             }
             radius++;
         }
-        // Fallback if super crowded (stack)
         if (!found) {
             img.finalX = cx;
             img.finalY = cy;
         }
     });
     
-    const containerW = mapContainer.clientWidth;
-    const containerH = mapContainer.clientHeight;
+    // Fixed layout size or dynamic? 
+    // Container is 4000x4000. Let's use that.
+    const containerW = 4000;
+    const containerH = 4000;
     
-    // Recalculate cell size based on new spread bounds
     const cellW = containerW / (maxX + 2);
     const cellH = containerH / (maxY + 2);
 
@@ -281,7 +294,6 @@ function displayImages(imageList) {
 
         const el = document.createElement('div');
         el.className = 'image-node';
-        // Size: slightly smaller than cell to leave gap
         const size = Math.min(150, Math.min(cellW, cellH) * 0.9);
         el.style.width = `${size}px`;
         el.style.height = `${size}px`;
@@ -294,8 +306,10 @@ function displayImages(imageList) {
         el.title = img.keywords ? img.keywords.map(k => `${k.className} (${Math.round(k.probability*100)}%)`).join(', ') : img.name;
         
         const imageElement = document.createElement('img');
-        imageElement.src = img.url;
+        imageElement.src = img.thumbUrl; // Use thumbnail
         imageElement.loading = 'lazy';
+        
+        el.onclick = () => window.open(img.url, '_blank'); // Open full
         
         el.appendChild(imageElement);
         mapContainer.appendChild(el);
@@ -332,7 +346,6 @@ function setTransform() {
 }
 
 mainContainer.addEventListener('mousedown', (e) => {
-    // Only left click
     if (e.button !== 0) return;
     e.preventDefault();
     startX = e.clientX - pointX;
@@ -358,45 +371,24 @@ mainContainer.addEventListener('mouseleave', () => {
 
 mainContainer.addEventListener('wheel', (e) => {
     e.preventDefault();
-    
     const xs = (e.clientX - mainContainer.getBoundingClientRect().left - pointX) / scale;
     const ys = (e.clientY - mainContainer.getBoundingClientRect().top - pointY) / scale;
-    
     const delta = -e.deltaY;
     const factor = delta > 0 ? 1.1 : 0.9;
-    
     let newScale = scale * factor;
-    // Limit scale
     newScale = Math.min(Math.max(0.1, newScale), 5);
-    
     pointX -= xs * (newScale - scale);
     pointY -= ys * (newScale - scale);
     scale = newScale;
-    
     setTransform();
 });
 
-// Initial Center
 function centerMap() {
-    // Center initially (approx)
-    const containerW = mainContainer.clientWidth;
-    const containerH = mainContainer.clientHeight;
-    // Map is 4000x4000
-    // We want to center it:
-    // (ContainerW - MapW*Scale) / 2
-    
-    // Start zoomed out to fit?
-    scale = Math.min(containerW/4000, containerH/4000);
-    // Or just start at 0.1?
+    // Start zoomed out
     scale = 0.2; 
-    
-    pointX = (containerW - 4000 * scale) / 2;
-    pointY = (containerH - 4000 * scale) / 2;
-    
+    pointX = (mainContainer.clientWidth - 4000 * scale) / 2;
+    pointY = (mainContainer.clientHeight - 4000 * scale) / 2;
     setTransform();
 }
 
-// Call centerMap on load (or after display)
-// We'll call it when images are displayed for the first time if needed, 
-// or just initialize it now.
 centerMap();
