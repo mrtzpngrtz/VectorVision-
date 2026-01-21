@@ -134,10 +134,30 @@ class SimpleSOM {
     }
 }
 
+// Native folder picker dialog
+async function selectFolderDialog() {
+    if (!isElectron) return;
+    
+    try {
+        const result = await window.electronAPI.selectFolder();
+        if (result.path) {
+            document.getElementById('folder-path').value = result.path;
+            // Auto-scan after folder selection
+            scanFolder();
+        }
+    } catch (error) {
+        console.error('Error selecting folder:', error);
+    }
+}
+
 // --- App Logic ---
 async function scanFolder() {
     const folderPath = document.getElementById('folder-path').value;
-    if (!folderPath) return alert('Please enter a folder path');
+    if (!folderPath || folderPath === 'No folder selected') {
+        // If no folder selected, open dialog
+        selectFolderDialog();
+        return;
+    }
 
     if (!isElectron) {
         alert('This app must be run as an Electron desktop application.');

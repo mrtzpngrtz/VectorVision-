@@ -35,10 +35,13 @@
             <div class="control-group" style="border-top: 1px solid var(--border); padding-top: 20px;">
                 <div class="control-subgroup">
                     <label>Library</label>
-                    <input type="text" id="folder-path" placeholder="C:/Photos">
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="folder-path" placeholder="No folder selected" readonly style="flex: 1; cursor: pointer; margin-bottom: 0;" onclick="selectFolderDialog()">
+                        <button onclick="selectFolderDialog()" class="secondary-btn" style="width: 40px; padding: 0; margin-bottom: 0;" title="Browse">📁</button>
+                    </div>
                 </div>
 
-                <button onclick="scanFolder()" class="primary-btn">Scan Library</button>
+                <button onclick="scanFolder()" class="primary-btn" style="margin-top: 12px;">Scan Library</button>
                 <button onclick="rescanFolder()" class="secondary-btn" style="margin-top: 8px;">Force Rescan</button>
                 
                 <div id="status-container" style="display: none;">
