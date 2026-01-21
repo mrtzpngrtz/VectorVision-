@@ -2,19 +2,19 @@
 
 **ImageVector** is a minimalist, browser-based tool for exploring and organizing large image libraries in 2D and 3D space. It uses fully offline AI to analyze visual features, colors, and content, arranging images into intuitive clusters.
 
-![UI Preview](https://via.placeholder.com/800x400?text=ImageVector+Interface)
+![UI Preview](screenshot.png)
 
 ## Features
 
-*   **AI Semantic Clustering**: Organizes images by visual similarity using MobileNet embeddings and a Self-Organizing Map (SOM).
+*   **AI Semantic Clustering**: Organizes images by visual similarity using CLIP embeddings and a Self-Organizing Map (SOM).
 *   **Chromatic Sorting**: 3D clustering based on dominant colors.
 *   **Timeline Visualization**: Interactive 3D "Time Ribbon" to explore your library chronologically.
-*   **Smart Search**: Type a keyword, and the camera automatically navigates to the visual center of matching images.
+*   **Smart Search**: Type a keyword, and the camera automatically navigates to the visual center of matching images using CLIP's zero-shot classification.
 *   **Deep Interaction**:
     *   **Shift+Click** to reveal semantic neighbors.
     *   **Depth Control** to expand/compress 3D clusters.
 *   **Minimalist Design**: Distraction-free, strict monochrome interface.
-*   **100% Offline & Private**: All AI analysis happens locally in your browser using TensorFlow.js. No cloud connections, no API keys required, no data leaves your machine.
+*   **100% Offline & Private**: All AI analysis happens locally in your browser using Transformers.js and CLIP. No cloud connections, no API keys required, no data leaves your machine.
 
 ## Installation
 
@@ -45,9 +45,9 @@
 
 ## Technologies
 
-*   **Frontend**: Vanilla JavaScript, CSS3 (3D Transforms), TensorFlow.js
+*   **Frontend**: Vanilla JavaScript, CSS3 (3D Transforms), Transformers.js
 *   **Backend**: Node.js, Express (for file access)
-*   **AI Models**: MobileNet v2, Coco-SSD
+*   **AI Models**: CLIP (ViT-Base-Patch32) for visual embeddings and zero-shot classification
 
 ## License
 

@@ -1,6 +1,7 @@
 let images = [];
-let featureModel = null;
-let tagModel = null;
+let clipImageModel = null;
+let clipTextModel = null;
+let hardwareAccel = 'CHECKING...';
 const mapContainer = document.getElementById('map-container');
 const statusDiv = document.getElementById('status');
 const progressDiv = document.getElementById('progress');
@@ -191,10 +192,58 @@ async function scanFolder() {
 
 async function processImagesBrowser(toAnalyzeList) {
     try {
-        if (!featureModel) {
-            statusDiv.textContent = 'BOOTSTRAPPING_AI';
-            featureModel = await mobilenet.load({ version: 2, alpha: 1.0 });
-            tagModel = await cocoSsd.load();
+        if (!clipImageModel) {
+            statusDiv.textContent = 'BOOTSTRAPPING_CLIP';
+            // Wait for transformers to be loaded
+            while (!window.transformers) {
+                await new Promise(r => setTimeout(r, 100));
+            }
+            const { pipeline } = window.transformers;
+            
+            // Try to use WebGPU for hardware acceleration
+            let deviceConfig = {};
+            try {
+                // Check if WebGPU is available
+                if (navigator.gpu) {
+                    deviceConfig = { device: 'webgpu', dtype: 'fp32' };
+                    hardwareAccel = 'WEBGPU';
+                    console.log('WebGPU available - enabling GPU acceleration');
+                } else {
+                    hardwareAccel = 'WASM_MT';
+                    console.log('WebGPU not available - using multithreaded WASM');
+                }
+            } catch (e) {
+                hardwareAccel = 'WASM_MT';
+                console.log('Falling back to multithreaded WASM');
+            }
+            
+            // Load CLIP models with quantized versions for better performance
+            statusDiv.textContent = `LOADING_CLIP [${hardwareAccel}]`;
+            try {
+                // Try quantized model first (faster, smaller)
+                clipImageModel = await pipeline('image-feature-extraction', 'Xenova/clip-vit-base-patch32', deviceConfig);
+                clipTextModel = await pipeline('zero-shot-image-classification', 'Xenova/clip-vit-base-patch32', deviceConfig);
+                console.log(`CLIP loaded successfully with ${hardwareAccel}`);
+            } catch (e) {
+                console.error('Error loading with preferred device:', e);
+                // Fallback to default (WASM)
+                hardwareAccel = 'WASM';
+                clipImageModel = await pipeline('image-feature-extraction', 'Xenova/clip-vit-base-patch32');
+                clipTextModel = await pipeline('zero-shot-image-classification', 'Xenova/clip-vit-base-patch32');
+            }
+            
+            // Update hardware acceleration status in UI
+            const hwAccelEl = document.getElementById('hw-accel-status');
+            if (hwAccelEl) {
+                hwAccelEl.textContent = hardwareAccel;
+                if (hardwareAccel === 'WEBGPU') {
+                    hwAccelEl.style.color = '#00ff00';
+                } else if (hardwareAccel === 'WASM_MT') {
+                    hwAccelEl.style.color = '#ffaa00';
+                } else {
+                    hwAccelEl.style.color = '#ff6666';
+                }
+            }
         }
 
         let processedCount = 0;
@@ -218,6 +267,15 @@ async function processImagesBrowser(toAnalyzeList) {
             return [r, g, b];
         };
 
+        // Common object categories for zero-shot classification
+        const candidateLabels = [
+            'person', 'people', 'car', 'vehicle', 'building', 'architecture', 
+            'animal', 'dog', 'cat', 'bird', 'nature', 'landscape', 'tree', 
+            'flower', 'food', 'indoor', 'outdoor', 'sky', 'water', 'ocean',
+            'mountain', 'city', 'street', 'house', 'room', 'furniture',
+            'computer', 'phone', 'book', 'art', 'painting', 'portrait'
+        ];
+
         statusDiv.textContent = `ANALYZING_STREAM`;
         setLoading(true);
 
@@ -232,15 +290,18 @@ async function processImagesBrowser(toAnalyzeList) {
                 imgData.colorVector = [color[0]/255, color[1]/255, color[2]/255];
 
                 if (!imgData.features) {
-                    const activation = await featureModel.infer(imgEl, true);
-                    const features = await activation.data(); 
-                    activation.dispose(); 
-                    imgData.features = Array.from(features);
+                    // Extract CLIP image features - pass URL instead of element
+                    const output = await clipImageModel(imgData.thumbUrl, { pooling: 'mean', normalize: true });
+                    imgData.features = Array.from(output.data);
                 }
                 
                 if (!imgData.keywords) {
-                    const detections = await tagModel.detect(imgEl);
-                    imgData.keywords = detections.map(d => ({ className: d.class, probability: d.score }));
+                    // Zero-shot classification with CLIP - pass URL instead of element
+                    const classifications = await clipTextModel(imgData.thumbUrl, candidateLabels, { topk: 3 });
+                    imgData.keywords = classifications.map(c => ({ 
+                        className: c.label, 
+                        probability: c.score 
+                    }));
                 }
                 processedCount++;
             } catch (err) {
