@@ -9,21 +9,42 @@
 
 **High-performance desktop application for AI-powered image exploration and organization**
 
+```
+┌─────────────────────────────────────────────────────────┐
+│  [✓] 100% LOCAL  |  [✓] GPU ACCELERATED  |  [✓] PRIVATE │
+└─────────────────────────────────────────────────────────┘
+```
+
 ![UI Preview](screenshot.png)
+
+## [◆] ORIGIN STORY
+
+For a long time I searched for commercial software that could archive images and connect them on a visual and semantic level. I never found the right solution, so I built VectorVision.
+
+This is not a commercial product. It is a personal tool built through vibecoding. I used Visual Studio Code with Gemini 3 and Claude Sonnet to create exactly what I needed for my own workflow. It runs entirely locally and keeps all data private.
 
 ## [▸] FEATURES
 
 *   **Native GPU Acceleration**: Uses ONNX Runtime with DirectML (Windows) or CoreML (macOS) for 5-10x faster image analysis
 *   **AI Semantic Clustering**: Organizes images by visual similarity using CLIP embeddings and Self-Organizing Maps (SOM)
-*   **120+ Smart Categories**: Advanced zero-shot classification with comprehensive labels (people, nature, architecture, food, art, and more)
-*   **Chromatic Sorting**: 2D/3D clustering based on dominant colors
-*   **Real-Time Progress**: Live stats showing speed, ETA, and current file during analysis
+*   **150+ Smart Categories**: Optimized for artistic/design/fashion photography with tags like:
+    *   **Photography**: monochrome, minimalist, abstract, high contrast, dramatic, cinematic, editorial
+    *   **Design**: graphic design, typography, branding, layout, composition, visual identity
+    *   **Patterns**: geometric pattern, texture, striped, grid, lines, waves, abstract pattern
+    *   **Objects**: product, still life, bottle, glass, sphere, cube, geometric shape
+    *   **Space**: negative space, minimal composition, centered, symmetrical, balanced
+    *   **Light**: light and shadow, chiaroscuro, dramatic lighting, backlit, silhouette
+    *   **Color**: vibrant, muted, gradients, warm tones, cool tones
+    *   **Style**: fashion, elegant, contemporary, avant garde, experimental, surreal
+*   **Multi-Dimensional Sorting**: 2D/3D clustering by AI semantics, color, or lightness
+*   **Real-Time Progress**: Live stats showing speed (5-10 fps), ETA, and current file during analysis
 *   **Smart Search**: Type keywords to filter and re-cluster images semantically
 *   **Deep Interaction**:
-    *   **Shift+Click** to reveal semantic neighbors
+    *   **Right-Click** to reveal 10 semantic neighbors (ESC/right-click/background to cancel)
+    *   **Double-Click** for full-resolution lightbox view
     *   **Depth Control** to expand/compress 3D clusters
     *   **Auto-Drift** mode for cinematic exploration
-*   **Minimalist Design**: Distraction-free, monochrome interface with dark/light themes
+*   **Minimalist Design**: Distraction-free interface optimized for desktop, stable layout during scanning
 *   **100% Private**: All AI analysis happens locally on your machine - no cloud, no API keys required
 
 ## [■] REQUIREMENTS
@@ -65,19 +86,27 @@
 ## [▶] USAGE
 
 1.  **Launch the app** with `npm start`
-2.  **Enter your image folder path** (e.g., `C:\Users\You\Pictures`)
+2.  **Select your image folder** using the browse button (⊞) or enter path manually
 3.  **Click "Scan Library"** - The app will:
     -   Scan for supported images (.jpg, .jpeg, .png, .gif, .webp)
-    -   Load cached analysis if available
-    -   Analyze new images with native GPU acceleration
-    -   Display real-time progress (speed, ETA, current file)
+    -   Load cached analysis if available (instant load)
+    -   Analyze new images with GPU acceleration at 5-10 images/second
+    -   Display real-time stats: speed, progress, ETA, current filename
 4.  **Explore your images:**
-    -   Toggle between **2D Flat** and **3D Space** views
-    -   Switch **Sorting** modes: Grid, AI (semantic), Color, Lightness
-    -   Use **Search** to filter by auto-generated keywords
-    -   **Pan, zoom, rotate** to navigate the space
-    -   **Double-click** images for lightbox view
-    -   **Shift+Click** to highlight semantic neighbors
+    -   **View Modes**: Toggle between 2D Flat and 3D Space
+    -   **Sorting**: Grid, AI (semantic clustering), Color, Lightness
+    -   **Search**: Filter by keywords (monochrome, portrait, geometric, etc.)
+    -   **Navigate**: Pan (drag), zoom (scroll), rotate (drag in 3D)
+    -   **Inspect**: Hover for info, double-click for full-resolution view
+    -   **Discover**: Right-click to highlight 10 similar images
+    -   **Cancel**: Press ESC or click background to clear highlights
+    
+5.  **Force Rescan** to re-analyze all images with updated tag categories
+
+**Keyboard Shortcuts:**
+- `H` - Toggle UI
+- `ESC` - Clear highlights/filters
+- `Space` - Pan mode
 
 ## [⚡] PERFORMANCE
 

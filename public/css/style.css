@@ -26,12 +26,14 @@ body {
     width: 300px;
     background: var(--bg);
     border-right: 1px solid var(--border);
-    padding: 24px;
+    padding: 20px;
     display: flex;
     flex-direction: column;
     z-index: 100;
     font-family: 'Inter', sans-serif;
     transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 body.ui-hidden #sidebar {
@@ -76,8 +78,8 @@ body.ui-hidden .ui-toggle-btn {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 40px;
-    padding-bottom: 15px;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
     border-bottom: 1px solid var(--border);
 }
 
@@ -90,10 +92,10 @@ h2 {
 }
 
 .control-group {
-    margin-bottom: 24px;
+    margin-bottom: 16px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
 }
 
 .control-subgroup {
@@ -277,12 +279,12 @@ button.secondary-btn:hover {
 }
 
 #status {
-    margin-top: auto;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     font-weight: 600;
-    border-top: 2px solid var(--fg);
-    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
     padding-bottom: 5px;
+    margin-top: 12px;
     opacity: 1;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -537,11 +539,15 @@ button.secondary-btn:hover {
 .status-box {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
     border: 1px solid var(--border);
-    padding: 12px;
+    padding: 10px;
     margin-top: 10px;
     background: rgba(255,255,255,0.02);
+}
+
+#status-container {
+    min-height: 220px;
 }
 
 /* Progress Bar */
@@ -609,7 +615,9 @@ button.secondary-btn:hover {
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     gap: 4px;
+    min-height: 52px;
 }
 
 .stat-label {
@@ -641,16 +649,20 @@ button.secondary-btn:hover {
     margin-top: 8px;
     border: 1px solid var(--border);
     padding: 8px;
-    font-size: 0.65rem;
+    font-size: 0.6rem;
     font-family: 'Courier New', Courier, monospace;
     background: rgba(255,255,255,0.02);
+    height: auto;
+    max-height: 50px;
     min-height: 40px;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    line-height: 1.6;
     color: var(--fg);
     opacity: 0.8;
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    word-break: break-all;
+    line-height: 1.4;
 }
 
 .current-file:empty::before {
@@ -659,12 +671,12 @@ button.secondary-btn:hover {
 }
 
 .info-pane {
-    height: 80px;
+    height: 60px;
     border: 1px solid var(--border);
-    padding: 10px;
-    font-size: 0.7rem;
+    padding: 8px;
+    font-size: 0.65rem;
     font-family: 'Courier New', Courier, monospace;
     overflow-y: auto;
     background: rgba(255,255,255,0.02);
-    line-height: 1.4;
+    line-height: 1.3;
 }

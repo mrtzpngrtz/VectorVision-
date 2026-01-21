@@ -160,7 +160,7 @@ async function scanFolder() {
     }
 
     if (!isElectron) {
-        alert('This app must be run as an Electron desktop application.');
+        statusDiv.textContent = 'ERR: ELECTRON_REQUIRED';
         return;
     }
 
@@ -211,14 +211,19 @@ async function scanFolder() {
 
 async function rescanFolder() {
     const folderPath = document.getElementById('folder-path').value;
-    if (!folderPath) return alert('Please enter a folder path');
-    
-    if (!isElectron) {
-        alert('This app must be run as an Electron desktop application.');
+    if (!folderPath) {
+        statusDiv.textContent = 'ERR: NO_FOLDER_PATH';
         return;
     }
     
-    if (!confirm('This will re-analyze ALL images with native CLIP and improved accuracy. Continue?')) {
+    if (!isElectron) {
+        statusDiv.textContent = 'ERR: ELECTRON_REQUIRED';
+        return;
+    }
+    
+    // Use native confirm
+    if (!confirm('FORCE RESCAN: Re-analyze all images with updated categories?\n\nThis will take several minutes for large libraries.')) {
+        statusDiv.textContent = 'RESCAN_CANCELLED';
         return;
     }
 
@@ -276,10 +281,7 @@ async function processImagesNative(toAnalyzeList) {
         window.electronAPI.onAnalysisProgress((progress) => {
             const { current, total: progressTotal, fileName } = progress;
             
-            // Update current file display
-            if (progressDiv) {
-                progressDiv.textContent = `▸ ${fileName}`;
-            }
+            // Filename display removed per user request
             
             // Update progress bar
             const percentage = (current / progressTotal) * 100;
@@ -714,16 +716,36 @@ function resolveCollisionsColor3D() {
     });
 }
 
-function calculateLightness() {
+function calculateLightness(is3DMode) {
     statusDiv.textContent = 'MAPPING_LIGHTNESS';
     const valid = images.filter(i => i.color);
+    
+    // Calculate luminance for all images
     valid.forEach(img => {
         const [r, g, b] = img.color;
         const lum = 0.2126*r + 0.7152*g + 0.0722*b;
-        img.zLight = (lum / 255) * 4000;
-        if (img.x !== undefined) { img.xLight = img.x; img.yLight = img.y; }
-        else { img.xLight = 0; img.yLight = 0; }
+        img.luminance = lum;
     });
+    
+    if (is3DMode) {
+        // 3D mode: Z-axis represents lightness
+        valid.forEach(img => {
+            img.zLight = (img.luminance / 255) * 4000;
+            if (img.x !== undefined) { img.xLight = img.x; img.yLight = img.y; }
+            else { img.xLight = 0; img.yLight = 0; }
+        });
+    } else {
+        // 2D mode: Arrange by lightness in a grid from dark to light
+        const sorted = [...valid].sort((a, b) => a.luminance - b.luminance);
+        const cols = Math.ceil(Math.sqrt(sorted.length));
+        
+        sorted.forEach((img, i) => {
+            img.xLight = i % cols;
+            img.yLight = Math.floor(i / cols);
+            img.zLight = 0;
+        });
+    }
+    
     saveData();
     displayImages(images);
 }
@@ -760,8 +782,8 @@ async function setViewMode(to3D) {
     const presetCtrl = document.getElementById('view-presets');
     if (sliderCtrl) sliderCtrl.style.display = is3D ? 'block' : 'none';
     if (presetCtrl) presetCtrl.style.display = is3D ? 'block' : 'none';
-    if (currentSort === 'lightness' && !is3D) await setSorting('semantic');
-    else await setSorting(currentSort);
+    // Re-apply current sorting mode (works in both 2D and 3D now)
+    await setSorting(currentSort);
     if (is3D) reset3DView();
     else centerMap();
 }
@@ -781,9 +803,8 @@ async function setSorting(mode) {
         if (trainedCount < images.length) await trainColor(is3D);
     } else if (mode === 'lightness') {
         statusDiv.textContent = "MODE_LIGHTNESS";
-        if (!is3D) { await setViewMode(true); return; }
-        const hasLightness = images.every(img => img.zLight !== undefined);
-        if (!hasLightness) calculateLightness();
+        const hasLightness = images.every(img => is3D ? img.zLight !== undefined : (img.xLight !== undefined && img.yLight !== undefined));
+        if (!hasLightness) calculateLightness(is3D);
     } else {
         statusDiv.textContent = "MODE_SEMANTIC";
         const trainedCount = images.filter(img => is3D ? img.x3 !== undefined : img.x !== undefined).length;
@@ -842,7 +863,7 @@ function displayImages(imageList) {
                 return { x: i % cols, y: Math.floor(i / cols), z: 0 };
             }
         } else if (currentSort === 'color') return is3D ? {x: img.xC3, y: img.yC3, z: img.zC3} : {x: img.xC, y: img.yC, z: 0};
-        else if (currentSort === 'lightness') return {x: img.xLight, y: img.yLight, z: img.zLight};
+        else if (currentSort === 'lightness') return is3D ? {x: img.xLight, y: img.yLight, z: img.zLight} : {x: img.xLight, y: img.yLight, z: 0};
         else return is3D ? {x: img.x3, y: img.y3, z: img.z3} : {x: img.x, y: img.y, z: 0};
     });
     const validIndices = coords.map((c, i) => c.x !== undefined ? i : -1).filter(i => i !== -1);
@@ -895,7 +916,11 @@ function displayImages(imageList) {
                 }
             });
         };
-        el.onclick = (e) => { if (e.shiftKey) { e.stopPropagation(); highlightNeighbors(index); } };
+        el.oncontextmenu = (e) => { 
+            e.preventDefault(); 
+            e.stopPropagation(); 
+            highlightNeighbors(index); 
+        };
         el.ondblclick = async (e) => { 
             e.stopPropagation(); 
             if (isElectron) {
@@ -930,8 +955,19 @@ function displayImages(imageList) {
     if (!is3D) centerMap();
 }
 
+let isHighlighting = false;
+
 function highlightNeighbors(targetIndex) {
-    const target = images[targetIndex]; if (!target.features) return;
+    // Toggle highlighting - if already highlighting, clear it
+    if (isHighlighting) {
+        clearHighlight();
+        return;
+    }
+    
+    const target = images[targetIndex]; 
+    if (!target.features) return;
+    
+    isHighlighting = true;
     imageNodeElements.forEach(n => { n.style.opacity = '0.1'; n.style.border = 'none'; });
     const dists = images.map((img, i) => {
         if (!img.features) return { idx: i, d: Infinity };
@@ -942,6 +978,15 @@ function highlightNeighbors(targetIndex) {
     dists.slice(0, 10).forEach(item => {
         const el = imageNodeElements.find(node => node.id === `node-${item.idx}`);
         if (el) { el.style.opacity = '1'; el.style.border = '2px solid red'; }
+    });
+}
+
+function clearHighlight() {
+    if (!isHighlighting) return;
+    isHighlighting = false;
+    imageNodeElements.forEach(n => { 
+        n.style.opacity = '1'; 
+        n.style.border = 'none'; 
     });
 }
 
@@ -1044,10 +1089,33 @@ async function searchImages() {
             semanticInfoDiv.innerHTML = content;
         };
         
-        el.ondblclick = (e) => { e.stopPropagation(); showLightbox(img.url); };
+        el.ondblclick = (e) => { 
+            e.stopPropagation(); 
+            if (isElectron) {
+                const fullPath = `file:///${img.path.replace(/\\/g, '/')}`;
+                showLightbox(fullPath);
+            } else {
+                showLightbox(img.url);
+            }
+        };
         
         const imageElement = document.createElement('img');
-        imageElement.src = img.thumbUrl;
+        // In Electron mode, load thumbnail async (same as displayImages)
+        if (isElectron && !img.thumbnailData) {
+            // Show placeholder while loading
+            imageElement.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150"%3E%3Crect fill="%23222" width="150" height="150"/%3E%3C/svg%3E';
+            // Load thumbnail data asynchronously
+            window.electronAPI.getImageData(img.path).then(result => {
+                img.thumbnailData = result.dataUrl;
+                imageElement.src = result.dataUrl;
+            }).catch(err => {
+                console.error('Error loading thumbnail:', err);
+            });
+        } else if (isElectron && img.thumbnailData) {
+            imageElement.src = img.thumbnailData;
+        } else {
+            imageElement.src = img.thumbUrl;
+        }
         imageElement.loading = 'lazy';
         el.appendChild(imageElement);
         fragment.appendChild(el);
@@ -1152,6 +1220,7 @@ function updateProximityFading() {
 window.addEventListener('keydown', (e) => { 
     if (e.code === 'Space') isSpacePressed = true; 
     if (e.code === 'KeyH') toggleUI();
+    if (e.code === 'Escape') clearHighlight();
 });
 window.addEventListener('keyup', (e) => { if (e.code === 'Space') isSpacePressed = false; });
 function updateTransform() {
@@ -1197,7 +1266,10 @@ const mapControls = document.getElementById('map-controls');
 if (mapControls) mapControls.addEventListener('mousedown', (e) => e.stopPropagation());
 main.addEventListener('contextmenu', (e) => e.preventDefault());
 main.addEventListener('mousedown', (e) => {
-    if (e.target === main || e.target === mapContainer) clearAll();
+    if (e.target === main || e.target === mapContainer) {
+        clearAll();
+        clearHighlight();
+    }
     if (isSpacePressed || e.button === 2) dragButton = 2; 
     else if (e.button === 0) dragButton = 0; else return;
     e.preventDefault(); startX = e.clientX; startY = e.clientY; isDragging = true;
@@ -1241,4 +1313,22 @@ themeToggle.onclick = () => {
     const isDark = document.body.classList.contains('dark-mode');
     localStorage.setItem('theme', isDark ? 'dark' : 'light');
 };
+// Live search functionality
+const searchInput = document.getElementById('search-input');
+if (searchInput) {
+    let searchTimeout;
+    searchInput.addEventListener('input', (e) => {
+        // Debounce search for 500ms
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            const value = e.target.value.trim();
+            if (value) {
+                searchImages();
+            } else {
+                clearAll();
+            }
+        }, 500);
+    });
+}
+
 randomizeTargetVelocity(); centerMap();

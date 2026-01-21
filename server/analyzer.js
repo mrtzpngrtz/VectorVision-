@@ -8,6 +8,12 @@ const axios = require('axios');
 let visionSession = null;
 let textSession = null;
 let hardwareProvider = 'cpu';
+let clipTokenizer = null;
+let AutoTokenizer = null;
+
+// Cache for pre-encoded text features (for performance)
+let cachedTextFeatures = null;
+let cachedCandidateLabels = null;
 
 // CLIP model URLs (ONNX format) - Using Xenova's properly converted models
 const MODEL_URLS = {
@@ -110,12 +116,116 @@ async function loadModel() {
         });
         console.log('CLIP Text model loaded');
 
+        // Load the proper CLIP tokenizer
+        await loadTokenizer();
+
+        // Pre-encode all text labels for zero-shot classification (performance optimization)
+        console.log('Pre-encoding text labels for fast classification...');
+        await preEncodeTextLabels();
+        console.log('Text labels pre-encoded and cached');
+
         console.log(`Hardware acceleration: ${hardwareProvider}`);
         return { hardwareProvider };
     } catch (error) {
         console.error('Error loading CLIP models:', error);
         throw error;
     }
+}
+
+// Pre-encode all candidate labels for fast classification
+async function preEncodeTextLabels() {
+    // Expanded vocabulary for artistic/design/fashion photography
+    const candidateLabels = [
+        // Photography Styles
+        'black and white', 'monochrome', 'minimalist', 'abstract', 'conceptual', 'artistic',
+        'high contrast', 'moody', 'dramatic', 'cinematic', 'editorial', 'fine art',
+        
+        // Fashion & Style
+        'fashion', 'fashion photography', 'fashion editorial', 'model', 'portrait', 'beauty', 'style', 'clothing', 'accessories',
+        'elegant', 'sophisticated', 'contemporary', 'avant garde', 'runway', 'outfit',
+        'haute couture', 'streetwear', 'minimalist fashion', 'luxury', 'designer',
+        
+        // Graphic Design & Typography
+        'graphic design', 'typography', 'text', 'lettering', 'typeface', 'font',
+        'poster', 'logo', 'branding', 'layout', 'design elements', 'visual identity',
+        
+        // Patterns & Textures
+        'pattern', 'repeating pattern', 'geometric pattern', 'organic pattern',
+        'texture', 'striped', 'dotted', 'grid', 'lines', 'circles', 'triangles',
+        'diagonal', 'waves', 'chevron', 'abstract pattern',
+        
+        // Geometric & Shapes
+        'geometric', 'geometric shape', 'circle', 'square', 'triangle',
+        'sphere', 'cube', 'pyramid', 'hexagon', 'polygon', 'angular', 'curved',
+        
+        // Objects & Products
+        'object', 'still life', 'product', 'product photography', 'commercial',
+        'bottle', 'glass', 'container', 'tool', 'device', 'gadget', 'furniture',
+        'car', 'vehicle', 'automobile', 'bike', 'bicycle', 'motorcycle',
+        'phone', 'computer', 'camera', 'watch', 'jewelry', 'bag', 'shoe',
+        'book', 'plant', 'flower', 'food', 'drink', 'cup', 'plate',
+        
+        // Space & Composition
+        'negative space', 'empty space', 'minimal composition', 'sparse',
+        'centered', 'symmetrical', 'asymmetrical', 'balanced', 'framing',
+        
+        // Light & Shadow
+        'light', 'shadow', 'light and shadow', 'chiaroscuro', 'backlit', 'silhouette',
+        'dramatic lighting', 'soft light', 'hard light', 'rim light', 'glow', 'luminous',
+        'spotlight', 'contrast lighting',
+        
+        // Color (even for B&W collections)
+        'colorful', 'vibrant', 'muted', 'pastel', 'saturated', 'desaturated',
+        'warm tones', 'cool tones', 'gradients', 'tonal',
+        
+        // People & Portraits 
+        'person', 'face', 'silhouette', 'figure', 'body', 'hands', 'eyes',
+        'profile', 'closeup', 'headshot', 'full body', 'gesture',
+        'man', 'woman', 'male', 'female',
+        
+        // Architecture & Interiors
+        'architecture', 'building', 'interior', 'urban', 'structure',
+        'modern architecture', 'brutalism', 'industrial', 'minimal interior',
+        'concrete', 'glass', 'steel', 'facade',
+        
+        // Nature (Artistic)
+        'nature', 'organic', 'natural form', 'botanical', 'landscape',
+        'water', 'sky', 'clouds', 'mountains', 'desert', 'ocean', 'trees',
+        
+        // Urban & Street
+        'street', 'city', 'urban', 'street photography', 'skyline',
+        'alley', 'sidewalk', 'pedestrian',
+        
+        // Conceptual & Experimental
+        'surreal', 'experimental', 'conceptual art', 'abstract art',
+        'visual metaphor', 'symbolic', 'poetic', 'dreamlike', 'mysterious',
+        'projection',
+        
+        // Composition & Style
+        'composition', 'layered', 'overlapping', 'reflection', 'mirror',
+        'double exposure', 'fragmented', 'collage', 'montage'
+    ];
+    
+    // Encode all text labels once
+    cachedCandidateLabels = candidateLabels;
+    cachedTextFeatures = await Promise.all(
+        candidateLabels.map(label => extractTextFeatures(label))
+    );
+    
+    // Debug: Check if text features are actually different
+    console.log('\n=== TEXT FEATURE DEBUG ===');
+    console.log(`Encoded ${cachedTextFeatures.length} labels`);
+    console.log(`Sample "black and white" first 5 values:`, cachedTextFeatures[0].slice(0, 5));
+    console.log(`Sample "portrait" first 5 values:`, cachedTextFeatures[cachedCandidateLabels.indexOf('portrait')].slice(0, 5));
+    console.log(`Sample "architecture" first 5 values:`, cachedTextFeatures[cachedCandidateLabels.indexOf('architecture')].slice(0, 5));
+    
+    // Check if they're all the same
+    const firstFeature = cachedTextFeatures[0];
+    const allSame = cachedTextFeatures.every(feat => 
+        feat.every((val, idx) => Math.abs(val - firstFeature[idx]) < 0.0001)
+    );
+    console.log(`All features identical: ${allSame}`);
+    console.log('========================\n');
 }
 
 // Preprocess image for CLIP (224x224, normalized)
@@ -148,51 +258,65 @@ async function preprocessImage(imagePath) {
     }
 }
 
-// Simple CLIP tokenizer (basic version - matches CLIP's vocabulary)
-function tokenizeText(text) {
-    const maxLength = 77;
-    const tokens = new BigInt64Array(maxLength).fill(49407n); // Fill with end token (int64)
+// Load CLIP tokenizer
+async function loadTokenizer() {
+    if (clipTokenizer) return clipTokenizer;
     
-    // Start token
-    tokens[0] = 49406n;
-    
-    // Very basic tokenization: convert text to lowercase and split by words
-    // This is simplified - real CLIP uses BPE tokenizer
-    const words = text.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/);
-    
-    // Map common words to approximate token IDs (very simplified)
-    const vocab = {
-        'photo': 1125, 'image': 2274, 'picture': 3937,
-        'person': 2533, 'people': 2559, 'man': 786, 'woman': 1590,
-        'car': 1615, 'vehicle': 4329, 'automobile': 14013,
-        'building': 2311, 'architecture': 5594, 'house': 2353,
-        'animal': 3724, 'dog': 1611, 'cat': 2368, 'pet': 3712,
-        'nature': 3820, 'landscape': 4034, 'scenery': 18338,
-        'food': 2057, 'meal': 7577, 'dinner': 8633,
-        'indoor': 7877, 'outdoor': 8942, 'inside': 2503, 'outside': 3225,
-        'sky': 3901, 'cloud': 6648, 'water': 2149, 'ocean': 5915,
-        'city': 2260, 'urban': 7393, 'street': 2690, 'road': 3166,
-        'art': 2083, 'painting': 4169, 'artwork': 8266,
-        'tree': 3392, 'forest': 8054, 'plant': 3627,
-        'a': 320, 'of': 539, 'the': 518, 'in': 530, 'with': 593
-    };
-    
-    let pos = 1;
-    for (const word of words) {
-        if (pos >= maxLength - 1) break;
-        if (vocab[word]) {
-            tokens[pos++] = BigInt(vocab[word]);
-        } else {
-            // Unknown word - use generic token
-            tokens[pos++] = 1000n;
-        }
+    // Dynamically import ES module
+    if (!AutoTokenizer) {
+        const transformers = await import('@xenova/transformers');
+        AutoTokenizer = transformers.AutoTokenizer;
     }
     
-    // End token at position pos
-    tokens[pos] = 49407n;
-    
-    return new ort.Tensor('int64', tokens, [1, maxLength]);
+    console.log('Loading CLIP tokenizer...');
+    clipTokenizer = await AutoTokenizer.from_pretrained('Xenova/clip-vit-base-patch32');
+    console.log('CLIP tokenizer loaded');
+    return clipTokenizer;
 }
+
+// Proper CLIP tokenizer using BPE
+async function tokenizeText(text) {
+    if (!clipTokenizer) {
+        await loadTokenizer();
+    }
+    
+    const encoded = await clipTokenizer(text, {
+        padding: 'max_length',
+        max_length: 77,
+        truncation: true,
+        return_tensors: false
+    });
+    
+    // Extract token IDs - handle different return formats
+    let tokenIds;
+    if (encoded.input_ids && Array.isArray(encoded.input_ids)) {
+        tokenIds = encoded.input_ids;
+    } else if (encoded.input_ids && encoded.input_ids.data) {
+        // Tensor format
+        tokenIds = Array.from(encoded.input_ids.data);
+    } else if (Array.isArray(encoded)) {
+        tokenIds = encoded;
+    } else {
+        console.error('Unexpected tokenizer output format:', encoded);
+        tokenIds = [49406, 49407]; // Fallback: [BOS, EOS]
+    }
+    
+    // Debug first 3 calls
+    if (!tokenizeText.callCount) tokenizeText.callCount = 0;
+    if (tokenizeText.callCount < 3) {
+        console.log(`\nTokenizing "${text}":`, tokenIds.slice(0, 10));
+        tokenizeText.callCount++;
+    }
+    
+    // Convert to BigInt64Array for ONNX
+    const tokens = new BigInt64Array(77);
+    for (let i = 0; i < Math.min(tokenIds.length, 77); i++) {
+        tokens[i] = BigInt(tokenIds[i]);
+    }
+    
+    return new ort.Tensor('int64', tokens, [1, 77]);
+}
+
 
 // Extract image features using CLIP
 async function extractImageFeatures(imagePath) {
@@ -239,7 +363,7 @@ function softmax(logits) {
 // Extract text features using CLIP text encoder
 async function extractTextFeatures(text) {
     try {
-        const inputIds = tokenizeText(text);
+        const inputIds = await tokenizeText(text);
         
         const feeds = { input_ids: inputIds };
         const results = await textSession.run(feeds);
@@ -248,100 +372,44 @@ async function extractTextFeatures(text) {
         const embedding = results.text_embeds || results.pooler_output;
         const features = Array.from(embedding.data);
         
-        return features;
+        // Normalize text features to unit length for consistent comparison
+        let norm = 0;
+        for (let i = 0; i < features.length; i++) {
+            norm += features[i] * features[i];
+        }
+        norm = Math.sqrt(norm);
+        const normalizedFeatures = features.map(v => v / norm);
+        
+        return normalizedFeatures;
     } catch (error) {
         console.error('Error extracting text features:', error);
         throw error;
     }
 }
 
-// Zero-shot classification with CLIP - Comprehensive open vocabulary
+// Zero-shot classification with CLIP - Using cached text features for performance
 async function classifyImage(imagePath) {
     try {
         const imageFeatures = await extractImageFeatures(imagePath);
         
-        // CLIP's powerful open vocabulary - 120+ diverse categories
-        const candidateLabels = [
-            // People & Portraits (12)
-            'a photo of a person', 'a photo of people', 'a group photo', 'a selfie',
-            'a portrait', 'a close-up of a face', 'children playing', 'a family photo',
-            'a wedding photo', 'people at a party', 'a crowd', 'friends together',
-            
-            // Animals & Pets (12)
-            'a photo of a dog', 'a photo of a cat', 'a photo of an animal',
-            'a bird', 'a horse', 'wildlife', 'a pet', 'animals in nature',
-            'an insect', 'a fish', 'marine life', 'a butterfly',
-            
-            // Vehicles & Transportation (12)
-            'a photo of a car', 'a truck', 'a motorcycle', 'a bicycle',
-            'an airplane', 'a boat', 'a ship', 'a train', 'public transportation',
-            'a sports car', 'classic car', 'a vehicle on the road',
-            
-            // Architecture & Buildings (12)
-            'a photo of a building', 'modern architecture', 'a house', 'a skyscraper',
-            'a church', 'a bridge', 'historical building', 'interior design',
-            'a room', 'a bedroom', 'a kitchen', 'a living room',
-            
-            // Nature & Landscapes (16)
-            'a photo of nature', 'a landscape', 'a mountain', 'a forest',
-            'a beach', 'desert landscape', 'countryside', 'a sunset', 'a sunrise',
-            'autumn scenery', 'winter scene', 'spring flowers', 'summer landscape',
-            'a tree', 'flowers', 'grass', 'leaves',
-            
-            // Sky & Weather (9)
-            'a photo of the sky', 'clouds', 'a clear sky', 'dramatic sky',
-            'a stormy sky', 'blue sky', 'night sky', 'stars', 'the moon',
-            
-            // Water & Aquatic (8)
-            'a photo of water', 'the ocean', 'a lake', 'a river', 'a waterfall',
-            'underwater scene', 'waves', 'reflection on water',
-            
-            // Urban & City (11)
-            'a photo of a city', 'city skyline', 'a street', 'urban scene',
-            'downtown', 'a road', 'pedestrians', 'traffic', 'nightlife',
-            'a shop', 'a restaurant', 'a cafe',
-            
-            // Food & Dining (13)
-            'a photo of food', 'a meal', 'breakfast', 'lunch', 'dinner',
-            'dessert', 'a salad', 'a drink', 'coffee', 'cake', 'pizza',
-            'Asian cuisine', 'Italian food', 'fast food', 'fine dining',
-            
-            // Art & Culture (11)
-            'a photo of art', 'a painting', 'a sculpture', 'street art',
-            'graffiti', 'an artwork', 'abstract art', 'a museum', 'a gallery',
-            'illustration', 'digital art',
-            
-            // Events & Activities (8)
-            'a concert', 'a performance', 'a sports event', 'a festival',
-            'a celebration', 'a birthday party', 'fireworks', 'a ceremony',
-            
-            // Objects & Items (10)
-            'a photo of a book', 'a computer', 'a phone', 'furniture',
-            'a clock', 'a lamp', 'toys', 'electronics', 'clothing', 'shoes',
-            
-            // Sports & Recreation (8)
-            'a sports photo', 'people playing sports', 'a gym', 'hiking',
-            'skiing', 'surfing', 'a ball', 'outdoor activities',
-            
-            // Scenes & Environments (9)
-            'an indoor photo', 'an outdoor photo', 'a cozy interior',
-            'a bright room', 'dim lighting', 'minimalist design',
-            'vintage style', 'modern design', 'rustic setting',
-            
-            // Technical & Style (10)
-            'black and white photo', 'colorful image', 'macro photography',
-            'aerial view', 'birds eye view', 'close-up shot', 'wide angle shot',
-            'blurred background', 'bokeh effect', 'long exposure'
-        ];
+        // Use cached text features (pre-encoded during model loading)
+        if (!cachedTextFeatures || !cachedCandidateLabels) {
+            console.error('Text features not cached! This should not happen.');
+            return [];
+        }
         
-        // Encode all text labels
-        const textFeatures = await Promise.all(
-            candidateLabels.map(label => extractTextFeatures(label))
-        );
+        // Normalize image features for better comparison
+        const imageFeaturesArray = Array.isArray(imageFeatures) ? imageFeatures : Array.from(imageFeatures);
+        let imgNorm = 0;
+        for (let i = 0; i < imageFeaturesArray.length; i++) {
+            imgNorm += imageFeaturesArray[i] * imageFeaturesArray[i];
+        }
+        imgNorm = Math.sqrt(imgNorm);
+        const normalizedImageFeatures = imageFeaturesArray.map(v => v / imgNorm);
         
-        // Compute cosine similarities
-        const similarities = textFeatures.map(textFeat => 
-            cosineSimilarity(imageFeatures, textFeat)
+        // Compute cosine similarities using cached text features (FAST!)
+        const similarities = cachedTextFeatures.map(textFeat => 
+            cosineSimilarity(normalizedImageFeatures, textFeat)
         );
         
         // Apply temperature scaling and softmax
@@ -350,19 +418,29 @@ async function classifyImage(imagePath) {
         const probabilities = softmax(logits);
         
         // Create results with probabilities
-        const results = candidateLabels.map((label, i) => ({
+        const results = cachedCandidateLabels.map((label, i) => ({
             label: label.replace('a photo of ', '').replace('an ', '').replace('a ', '').replace('the ', '').replace('photo', '').trim(),
-            probability: probabilities[i]
+            probability: probabilities[i],
+            similarity: similarities[i]
         }));
         
         // Sort by probability and get top results
         results.sort((a, b) => b.probability - a.probability);
         
-        // Return top 3 with meaningful confidence (adaptive threshold)
-        const threshold = 0.03; // 3% minimum threshold
+        // Debug: Log top 5 results for first few images
+        const baseName = require('path').basename(imagePath);
+        if (Math.random() < 0.05) { // Log 5% of images
+            console.log(`\nTop 5 for ${baseName}:`);
+            results.slice(0, 5).forEach((r, i) => {
+                console.log(`  ${i+1}. ${r.label}: ${(r.probability * 100).toFixed(2)}% (sim: ${r.similarity.toFixed(4)})`);
+            });
+        }
+        
+        // Return top 5 with meaningful confidence (adaptive threshold)
+        const threshold = 0.01; // Lower threshold to 1%
         const keywords = results
             .filter(r => r.probability >= threshold)
-            .slice(0, 3)
+            .slice(0, 5)
             .map(r => ({
                 className: r.label,
                 probability: r.probability
