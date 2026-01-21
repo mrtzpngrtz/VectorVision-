@@ -2,20 +2,40 @@
   "name": "imagevector",
   "version": "1.0.0",
   "description": "Visual image exploration and organization tool",
-  "main": "server/index.js",
+  "main": "electron-main.js",
   "scripts": {
-    "start": "node server/index.js",
-    "dev": "nodemon server/index.js"
+    "start": "electron .",
+    "dev": "electron . --dev"
   },
   "dependencies": {
-    "@tensorflow/tfjs": "^4.14.0",
-    "@tensorflow-models/mobilenet": "^2.1.1",
-    "express": "^4.18.2",
-    "cors": "^2.8.5",
+    "electron": "^28.0.0",
+    "onnxruntime-node": "^1.16.3",
     "sharp": "^0.32.6",
-    "jpeg-js": "^0.4.4",
-    "pngjs": "^7.0.0",
     "uuid": "^9.0.1",
-    "ml-som": "^0.0.6"
+    "ml-som": "^0.0.6",
+    "axios": "^1.6.2"
+  },
+  "devDependencies": {
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.imagevector.app",
+    "productName": "ImageVector",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron-main.js",
+      "preload.js",
+      "public/**/*",
+      "server/**/*",
+      "models/**/*"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    }
   }
 }

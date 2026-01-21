@@ -1,7 +1,5 @@
 let images = [];
-let clipImageModel = null;
-let clipTextModel = null;
-let hardwareAccel = 'CHECKING...';
+let hardwareAccel = 'NATIVE_ONNX';
 const mapContainer = document.getElementById('map-container');
 const statusDiv = document.getElementById('status');
 const progressDiv = document.getElementById('progress');
@@ -9,6 +7,9 @@ const semanticInfoDiv = document.getElementById('semantic-info');
 const loaderEl = document.getElementById('main-loader');
 const statusContainer = document.getElementById('status-container');
 const fpsCounterEl = document.getElementById('fps-counter');
+
+// Check if running in Electron
+const isElectron = window.electronAPI !== undefined;
 
 function setLoading(active) {
     if (statusContainer) statusContainer.style.display = active ? 'block' : 'none';
@@ -138,28 +139,26 @@ async function scanFolder() {
     const folderPath = document.getElementById('folder-path').value;
     if (!folderPath) return alert('Please enter a folder path');
 
+    if (!isElectron) {
+        alert('This app must be run as an Electron desktop application.');
+        return;
+    }
+
     statusDiv.textContent = 'INIT_DB_LOAD';
     try {
-        const dbRes = await fetch('/api/load');
-        const dbJson = await dbRes.json();
+        const dbRes = await window.electronAPI.loadDatabase();
         let dbData = {};
-        if (dbJson.data) dbData = dbJson.data; 
-        if (Array.isArray(dbData)) {
+        if (dbRes.data) dbData = dbRes.data; 
+        if (Array.isArray(dbRes.data)) {
             const map = {};
-            dbData.forEach(item => map[item.path] = item);
+            dbRes.data.forEach(item => map[item.path] = item);
             dbData = map;
         }
 
         statusDiv.textContent = 'FILESYSTEM_SCAN';
         setLoading(true);
         
-        const response = await fetch('/api/scan', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ folderPath })
-        });
-        
-        const data = await response.json();
+        const data = await window.electronAPI.scanFolder(folderPath);
         if (data.error) throw new Error(data.error);
         
         images = data.images.map(img => {
@@ -173,7 +172,7 @@ async function scanFolder() {
         
         if (toAnalyze.length > 0) {
             statusDiv.textContent = `ANALYSIS_REQUIRED: ${toAnalyze.length}`;
-            processImagesBrowser(toAnalyze);
+            await processImagesNative(toAnalyze);
         } else {
             const hasCoords = images.some(img => img.x !== undefined);
             if (!hasCoords && images.length > 0) {
@@ -194,7 +193,12 @@ async function rescanFolder() {
     const folderPath = document.getElementById('folder-path').value;
     if (!folderPath) return alert('Please enter a folder path');
     
-    if (!confirm('This will re-analyze ALL images with the new CLIP model and improved accuracy. Continue?')) {
+    if (!isElectron) {
+        alert('This app must be run as an Electron desktop application.');
+        return;
+    }
+    
+    if (!confirm('This will re-analyze ALL images with native CLIP and improved accuracy. Continue?')) {
         return;
     }
 
@@ -202,13 +206,7 @@ async function rescanFolder() {
     setLoading(true);
     
     try {
-        const response = await fetch('/api/scan', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ folderPath })
-        });
-        
-        const data = await response.json();
+        const data = await window.electronAPI.scanFolder(folderPath);
         if (data.error) throw new Error(data.error);
         
         // Force re-analysis by clearing cached features and keywords
@@ -221,10 +219,107 @@ async function rescanFolder() {
         }));
         
         statusDiv.textContent = `FORCING_RESCAN: ${images.length}`;
-        processImagesBrowser(images);
+        await processImagesNative(images);
     } catch (error) {
         statusDiv.textContent = 'ERR: ' + error.message;
         setLoading(false);
+    }
+}
+
+// Native image processing using Electron IPC
+async function processImagesNative(toAnalyzeList) {
+    try {
+        statusDiv.textContent = 'LOADING_NATIVE_CLIP';
+        setLoading(true);
+
+        const startTime = Date.now();
+        const total = toAnalyzeList.length;
+        
+        hardwareAccel = 'NATIVE_ONNX';
+        const hwAccelEl = document.getElementById('hw-accel-status');
+        if (hwAccelEl) {
+            hwAccelEl.textContent = hardwareAccel;
+            hwAccelEl.style.color = '#00ff00';
+        }
+
+        // Initialize stats
+        const progressBar = document.getElementById('progress-bar');
+        const progressPercentage = document.getElementById('progress-percentage');
+        const statProcessed = document.getElementById('stat-processed');
+        const statTotal = document.getElementById('stat-total');
+        const statSpeed = document.getElementById('stat-speed');
+        const statEta = document.getElementById('stat-eta');
+
+        if (statTotal) statTotal.textContent = total;
+
+        // Set up progress listener
+        window.electronAPI.onAnalysisProgress((progress) => {
+            const { current, total: progressTotal, fileName } = progress;
+            
+            // Update current file display
+            if (progressDiv) {
+                progressDiv.textContent = `▸ ${fileName}`;
+            }
+            
+            // Update progress bar
+            const percentage = (current / progressTotal) * 100;
+            if (progressBar) progressBar.style.width = `${percentage}%`;
+            if (progressPercentage) progressPercentage.textContent = `${Math.round(percentage)}%`;
+            
+            // Update processed count
+            if (statProcessed) {
+                statProcessed.textContent = current;
+                statProcessed.classList.add('pulse');
+                setTimeout(() => statProcessed.classList.remove('pulse'), 500);
+            }
+            
+            // Calculate and update speed & ETA
+            const currentTime = Date.now();
+            const elapsed = (currentTime - startTime) / 1000;
+            const speed = current / elapsed;
+            const remaining = progressTotal - current;
+            const eta = remaining / speed;
+            
+            if (statSpeed) {
+                statSpeed.textContent = `${speed.toFixed(1)}/s`;
+            }
+            
+            if (statEta && eta > 0) {
+                if (eta < 60) {
+                    statEta.textContent = `${Math.round(eta)}s`;
+                } else {
+                    const mins = Math.floor(eta / 60);
+                    const secs = Math.round(eta % 60);
+                    statEta.textContent = `${mins}m ${secs}s`;
+                }
+            }
+        });
+
+        statusDiv.textContent = 'ANALYZING_NATIVE';
+        
+        // Send to native analyzer
+        const imagePaths = toAnalyzeList.map(img => img.path);
+        const result = await window.electronAPI.analyzeImages(imagePaths);
+        
+        // Update images with results
+        result.results.forEach(analyzed => {
+            const img = images.find(i => i.path === analyzed.path);
+            if (img && !analyzed.error) {
+                img.features = analyzed.features;
+                img.keywords = analyzed.keywords;
+                img.color = analyzed.color;
+                img.colorVector = analyzed.colorVector;
+            }
+        });
+        
+        // Clean up progress listener
+        window.electronAPI.removeAnalysisProgressListener();
+        
+        train2D();
+    } catch (error) {
+        statusDiv.textContent = 'ERR: ' + error.message;
+        setLoading(false);
+        console.error('Native analysis error:', error);
     }
 }
 
@@ -614,6 +709,8 @@ function calculateLightness() {
 }
 
 async function saveData() {
+    if (!isElectron) return;
+    
     const dataToSave = {};
     images.forEach(img => {
         dataToSave[img.path] = {
@@ -624,11 +721,12 @@ async function saveData() {
             xLight: img.xLight, yLight: img.yLight, zLight: img.zLight
         };
     });
-    await fetch('/api/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: dataToSave })
-    });
+    
+    try {
+        await window.electronAPI.saveDatabase(dataToSave);
+    } catch (error) {
+        console.error('Error saving database:', error);
+    }
 }
 
 // --- UI Logic ---
@@ -778,9 +876,34 @@ function displayImages(imageList) {
             });
         };
         el.onclick = (e) => { if (e.shiftKey) { e.stopPropagation(); highlightNeighbors(index); } };
-        el.ondblclick = (e) => { e.stopPropagation(); showLightbox(img.url); };
+        el.ondblclick = async (e) => { 
+            e.stopPropagation(); 
+            if (isElectron) {
+                // Load full resolution for lightbox
+                const fullPath = `file:///${img.path.replace(/\\/g, '/')}`;
+                showLightbox(fullPath);
+            } else {
+                showLightbox(img.url);
+            }
+        };
         const imageElement = document.createElement('img');
-        imageElement.src = img.thumbUrl; imageElement.loading = 'lazy';
+        // In Electron mode, load thumbnail async
+        if (isElectron && !img.thumbnailData) {
+            // Show placeholder while loading
+            imageElement.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150"%3E%3Crect fill="%23222" width="150" height="150"/%3E%3C/svg%3E';
+            // Load thumbnail data asynchronously
+            window.electronAPI.getImageData(img.path).then(result => {
+                img.thumbnailData = result.dataUrl;
+                imageElement.src = result.dataUrl;
+            }).catch(err => {
+                console.error('Error loading thumbnail:', err);
+            });
+        } else if (isElectron && img.thumbnailData) {
+            imageElement.src = img.thumbnailData;
+        } else {
+            imageElement.src = img.thumbUrl;
+        }
+        imageElement.loading = 'lazy';
         el.appendChild(imageElement); fragment.appendChild(el); imageNodeElements.push(el);
     });
     mapContainer.appendChild(fragment); mapContainer.className = is3D ? 'is-3d' : '';
