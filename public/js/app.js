@@ -190,6 +190,44 @@ async function scanFolder() {
     }
 }
 
+async function rescanFolder() {
+    const folderPath = document.getElementById('folder-path').value;
+    if (!folderPath) return alert('Please enter a folder path');
+    
+    if (!confirm('This will re-analyze ALL images with the new CLIP model and improved accuracy. Continue?')) {
+        return;
+    }
+
+    statusDiv.textContent = 'FILESYSTEM_SCAN';
+    setLoading(true);
+    
+    try {
+        const response = await fetch('/api/scan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ folderPath })
+        });
+        
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+        
+        // Force re-analysis by clearing cached features and keywords
+        images = data.images.map(img => ({
+            ...img,
+            features: null,
+            keywords: null,
+            color: null,
+            colorVector: null
+        }));
+        
+        statusDiv.textContent = `FORCING_RESCAN: ${images.length}`;
+        processImagesBrowser(images);
+    } catch (error) {
+        statusDiv.textContent = 'ERR: ' + error.message;
+        setLoading(false);
+    }
+}
+
 async function processImagesBrowser(toAnalyzeList) {
     try {
         if (!clipImageModel) {
@@ -267,22 +305,43 @@ async function processImagesBrowser(toAnalyzeList) {
             return [r, g, b];
         };
 
-        // Common object categories for zero-shot classification
+        // Refined categories for more accurate zero-shot classification
         const candidateLabels = [
-            'person', 'people', 'car', 'vehicle', 'building', 'architecture', 
-            'animal', 'dog', 'cat', 'bird', 'nature', 'landscape', 'tree', 
-            'flower', 'food', 'indoor', 'outdoor', 'sky', 'water', 'ocean',
-            'mountain', 'city', 'street', 'house', 'room', 'furniture',
-            'computer', 'phone', 'book', 'art', 'painting', 'portrait'
+            'a photo of a person', 'a photo of people',
+            'a photo of a car', 'a photo of a vehicle',
+            'a photo of a building', 'a photo of architecture',
+            'a photo of an animal', 'a photo of a dog', 'a photo of a cat',
+            'a photo of nature', 'a photo of a landscape',
+            'a photo of food', 'a photo of a meal',
+            'indoor scene', 'outdoor scene',
+            'a photo of the sky', 'a photo of water',
+            'a photo of a city', 'a photo of a street',
+            'a photo of art', 'a photo of a painting'
         ];
 
         statusDiv.textContent = `ANALYZING_STREAM`;
         setLoading(true);
 
+        // Initialize stats
+        const startTime = Date.now();
+        let lastUpdateTime = startTime;
+        const progressBar = document.getElementById('progress-bar');
+        const progressPercentage = document.getElementById('progress-percentage');
+        const statProcessed = document.getElementById('stat-processed');
+        const statTotal = document.getElementById('stat-total');
+        const statSpeed = document.getElementById('stat-speed');
+        const statEta = document.getElementById('stat-eta');
+
+        if (statTotal) statTotal.textContent = total;
+
         for (let i = 0; i < total; i++) {
             const imgData = toAnalyzeList[i];
             try {
-                progressDiv.textContent = `[${processedCount + 1}/${total}] PROC: ${imgData.name}`;
+                // Update current file display
+                if (progressDiv) {
+                    progressDiv.textContent = `▸ ${imgData.name}`;
+                }
+                
                 const imgEl = await loadImage(imgData.thumbUrl);
                 
                 const color = getDominantColor(imgEl);
@@ -297,17 +356,65 @@ async function processImagesBrowser(toAnalyzeList) {
                 
                 if (!imgData.keywords) {
                     // Zero-shot classification with CLIP - pass URL instead of element
-                    const classifications = await clipTextModel(imgData.thumbUrl, candidateLabels, { topk: 3 });
-                    imgData.keywords = classifications.map(c => ({ 
-                        className: c.label, 
-                        probability: c.score 
-                    }));
+                    const classifications = await clipTextModel(imgData.thumbUrl, candidateLabels, { topk: 5 });
+                    
+                    // Filter by confidence threshold (0.25 = 25%) and clean up labels
+                    const minConfidence = 0.25;
+                    imgData.keywords = classifications
+                        .filter(c => c.score >= minConfidence)
+                        .map(c => ({ 
+                            className: c.label.replace('a photo of ', '').replace('a photo of a ', '').replace('a photo of an ', '').trim(),
+                            probability: c.score 
+                        }))
+                        .slice(0, 3); // Keep top 3 after filtering
+                        
+                    // If no tags pass threshold, use the top result anyway
+                    if (imgData.keywords.length === 0 && classifications.length > 0) {
+                        imgData.keywords = [{
+                            className: classifications[0].label.replace('a photo of ', '').replace('a photo of a ', '').replace('a photo of an ', '').trim(),
+                            probability: classifications[0].score
+                        }];
+                    }
                 }
                 processedCount++;
+                
+                // Update progress every image
+                const progress = (processedCount / total) * 100;
+                if (progressBar) progressBar.style.width = `${progress}%`;
+                if (progressPercentage) progressPercentage.textContent = `${Math.round(progress)}%`;
+                
+                // Update processed count with pulse animation
+                if (statProcessed) {
+                    statProcessed.textContent = processedCount;
+                    statProcessed.classList.add('pulse');
+                    setTimeout(() => statProcessed.classList.remove('pulse'), 500);
+                }
+                
+                // Calculate and update speed & ETA
+                const currentTime = Date.now();
+                const elapsed = (currentTime - startTime) / 1000; // seconds
+                const speed = processedCount / elapsed;
+                const remaining = total - processedCount;
+                const eta = remaining / speed;
+                
+                if (statSpeed) {
+                    statSpeed.textContent = `${speed.toFixed(1)}/s`;
+                }
+                
+                if (statEta && eta > 0) {
+                    if (eta < 60) {
+                        statEta.textContent = `${Math.round(eta)}s`;
+                    } else {
+                        const mins = Math.floor(eta / 60);
+                        const secs = Math.round(eta % 60);
+                        statEta.textContent = `${mins}m ${secs}s`;
+                    }
+                }
+                
             } catch (err) {
                 console.error('Error:', err);
             }
-            if (i % 5 === 0) await new Promise(r => requestAnimationFrame(r));
+            if (i % 3 === 0) await new Promise(r => requestAnimationFrame(r));
         }
         train2D(); 
     } catch (error) {
@@ -640,7 +747,10 @@ function displayImages(imageList) {
         el._tz_val = z; el._visible = true;
         el.onmouseenter = () => {
             let content = `ID: ${img.name.toUpperCase()}<br>`;
-            if (img.keywords && img.keywords.length > 0) content += `TAG: ${img.keywords[0].className.toUpperCase()}<br>`;
+            if (img.keywords && img.keywords.length > 0) {
+                const tags = img.keywords.map(k => k.className.toUpperCase()).join(', ');
+                content += `TAGS: ${tags}<br>`;
+            }
             content += `POS: [${Math.round(x)},${Math.round(y)},${Math.round(z)}]`;
             semanticInfoDiv.innerHTML = content;
             if (is3D) return;
@@ -694,34 +804,119 @@ function highlightNeighbors(targetIndex) {
 
 function clearAll() {
     document.getElementById('search-input').value = '';
-    imageNodeElements.forEach(el => { el.style.opacity = '1'; el.style.border = 'none'; el.classList.remove('highlight'); });
+    statusDiv.textContent = 'RESTORING_VIEW...';
+    
+    // Simply redisplay all images with their original layout
+    displayImages(images);
+    
     statusDiv.textContent = 'SYSTEM_READY';
 }
 
-function searchImages() {
-    const keyword = document.getElementById('search-input').value.toLowerCase();
+async function searchImages() {
+    const keyword = document.getElementById('search-input').value.toLowerCase().trim();
     if (!keyword) { clearAll(); return; }
-    let matchCount = 0; let sumX = 0, sumY = 0, sumZ = 0;
-    imageNodeElements.forEach((el, i) => {
-        const img = images[i]; if (!img) return;
+    
+    statusDiv.textContent = 'FILTERING...';
+    setLoading(true);
+    
+    // Filter matching images
+    const matchedImages = [];
+    
+    images.forEach((img, i) => {
         const match = img.keywords && img.keywords.some(p => p.className.toLowerCase().includes(keyword));
         if (match) {
-            el.style.opacity = '1'; matchCount++;
-            const x = parseFloat(el.style.getPropertyValue('--tx'));
-            const y = parseFloat(el.style.getPropertyValue('--ty'));
-            sumX += x; sumY += y; sumZ += el._tz_val;
-        } else { el.style.opacity = '0.1'; }
-    });
-    statusDiv.textContent = `MATCH_FOUND: ${matchCount}`;
-    if (matchCount > 0) {
-        if (is3D) {
-            transX = -sumX / matchCount + main.clientWidth/2; transY = -sumY / matchCount + main.clientHeight/2;
-            transZ = - (sumZ / matchCount) - 1000; updateTransform();
-        } else {
-            pointX = -sumX / matchCount + main.clientWidth/2; pointY = -sumY / matchCount + main.clientHeight/2;
-            scale = 1; updateTransform();
+            matchedImages.push({ ...img, originalIndex: i });
         }
+    });
+    
+    if (matchedImages.length === 0) {
+        statusDiv.textContent = 'NO_MATCHES';
+        setLoading(false);
+        // Still show all images but dimmed
+        imageNodeElements.forEach(el => el.style.opacity = '0.2');
+        return;
     }
+    
+    statusDiv.textContent = `CLUSTERING: ${matchedImages.length} MATCHES`;
+    
+    // Re-cluster the matched images
+    const matchedVectors = matchedImages.filter(img => img.features).map(img => img.features);
+    
+    if (matchedVectors.length > 0 && matchedVectors.length > 1) {
+        const gridSize = Math.ceil(Math.sqrt(matchedVectors.length) * 1.5);
+        const tempSom = new SimpleSOM(gridSize, gridSize, 1, matchedVectors[0].length, Math.min(500, matchedVectors.length * 10));
+        
+        await tempSom.trainAsync(matchedVectors, (c, t) => {
+            statusDiv.textContent = `CLUSTERING: ${Math.round(c/t*100)}%`;
+        });
+        
+        matchedImages.forEach((img) => {
+            if (img.features) {
+                const pos = tempSom.getBMU(img.features);
+                img.xSearch = pos.x;
+                img.ySearch = pos.y;
+            }
+        });
+    } else {
+        // Single image or no features - just center it
+        matchedImages.forEach((img) => {
+            img.xSearch = 0;
+            img.ySearch = 0;
+        });
+    }
+    
+    // Clear and rebuild with only matched images
+    mapContainer.innerHTML = '';
+    imageNodeElements = [];
+    
+    const gridSize = Math.ceil(Math.sqrt(matchedImages.length) * 1.5);
+    const cellW = 4000 / (gridSize + 2);
+    const cellH = 4000 / (gridSize + 2);
+    
+    const fragment = document.createDocumentFragment();
+    
+    matchedImages.forEach((img) => {
+        const el = document.createElement('div');
+        el.className = 'image-node';
+        el.id = `node-${img.originalIndex}`;
+        el.style.width = `${cellW}px`;
+        el.style.height = `${cellH}px`;
+        
+        const x = (img.xSearch || 0) * cellW;
+        const y = (img.ySearch || 0) * cellH;
+        
+        el.style.setProperty('--tx', `${x}px`);
+        el.style.setProperty('--ty', `${y}px`);
+        el.style.setProperty('--tz', '0px');
+        el._tz_val = 0;
+        el._visible = true;
+        
+        el.onmouseenter = () => {
+            let content = `ID: ${img.name.toUpperCase()}<br>`;
+            if (img.keywords && img.keywords.length > 0) {
+                const tags = img.keywords.map(k => k.className.toUpperCase()).join(', ');
+                content += `TAGS: ${tags}<br>`;
+            }
+            content += `POS: [${Math.round(x)},${Math.round(y)},0]`;
+            semanticInfoDiv.innerHTML = content;
+        };
+        
+        el.ondblclick = (e) => { e.stopPropagation(); showLightbox(img.url); };
+        
+        const imageElement = document.createElement('img');
+        imageElement.src = img.thumbUrl;
+        imageElement.loading = 'lazy';
+        el.appendChild(imageElement);
+        fragment.appendChild(el);
+        imageNodeElements.push(el);
+    });
+    
+    mapContainer.appendChild(fragment);
+    mapContainer.className = '';
+    
+    statusDiv.textContent = `FILTERED: ${matchedImages.length}`;
+    setLoading(false);
+    centerMap();
 }
 
 // --- Navigation & Transforms ---

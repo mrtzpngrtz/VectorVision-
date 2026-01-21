@@ -49,13 +49,35 @@
                 </div>
 
                 <button onclick="scanFolder()" class="primary-btn">Scan Library</button>
+                <button onclick="rescanFolder()" class="secondary-btn" style="margin-top: 8px;">Force Rescan</button>
                 
                 <div id="status-container" style="display: none;">
                     <div class="status-box">
                         <div id="status" class="scifi-text" style="font-size: 0.7rem;">Ready</div>
-                        <div class="loader" id="main-loader" style="margin-top: 8px;"></div>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar" id="progress-bar"></div>
+                            <div class="progress-text" id="progress-percentage">0%</div>
+                        </div>
                     </div>
-                    <div id="progress" class="info-pane" style="margin-top: 8px;"></div>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-label">PROCESSED</div>
+                            <div class="stat-value" id="stat-processed">0</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">TOTAL</div>
+                            <div class="stat-value" id="stat-total">0</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">SPEED</div>
+                            <div class="stat-value" id="stat-speed">0/s</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">ETA</div>
+                            <div class="stat-value" id="stat-eta">--</div>
+                        </div>
+                    </div>
+                    <div id="progress" class="current-file"></div>
                 </div>
             </div>
 
@@ -112,7 +134,12 @@
             
             <div id="fps-counter" style="position: absolute; top: 10px; right: 10px; font-family: monospace; font-size: 10px; opacity: 0.5; z-index: 1000; pointer-events: none;">FPS: --</div>
 
-            <div class="ui-toggle-btn" onclick="toggleUI()" title="Toggle UI (H)">UI</div>
+            <div class="ui-toggle-btn" onclick="toggleUI()" title="Toggle UI (H)">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="2" y1="2" x2="14" y2="14"/>
+                    <line x1="14" y1="2" x2="2" y2="14"/>
+                </svg>
+            </div>
 
             <button id="theme-toggle" class="theme-toggle-map" title="Toggle Theme">
                 <div class="theme-icon"></div>
