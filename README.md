@@ -1,10 +1,17 @@
-# ImageVector Desktop
+```
+ ___                             __   __        _             
+|_ _|_ __ ___   __ _  __ _  ___ \ \ / /__  ___| |_ ___  _ __ 
+ | || '_ ` _ \ / _` |/ _` |/ _ \ \ V / _ \/ __| __/ _ \| '__|
+ | || | | | | | (_| | (_| |  __/  | |  __/ (__| || (_) | |   
+|___|_| |_| |_|\__,_|\__, |\___|  |_|\___|\___|\__\___/|_|   
+                     |___/                                    
+```
 
-**ImageVector** is a high-performance desktop application for exploring and organizing large image libraries in 2D and 3D space using native GPU-accelerated AI.
+**High-performance desktop application for AI-powered image exploration and organization**
 
 ![UI Preview](screenshot.png)
 
-## 🚀 Features
+## [▸] FEATURES
 
 *   **Native GPU Acceleration**: Uses ONNX Runtime with DirectML (Windows) or CoreML (macOS) for 5-10x faster image analysis
 *   **AI Semantic Clustering**: Organizes images by visual similarity using CLIP embeddings and Self-Organizing Maps (SOM)
@@ -19,7 +26,7 @@
 *   **Minimalist Design**: Distraction-free, monochrome interface with dark/light themes
 *   **100% Private**: All AI analysis happens locally on your machine - no cloud, no API keys required
 
-## 📋 Requirements
+## [■] REQUIREMENTS
 
 ### Windows
 - Windows 10/11 (64-bit)
@@ -31,7 +38,7 @@
 - Apple Silicon (M1/M2/M3) or Intel with Metal support
 - 8GB+ RAM recommended
 
-## 🔧 Installation
+## [↓] INSTALLATION
 
 1.  **Clone the repository:**
     ```bash
@@ -55,7 +62,7 @@
 
 **First Launch:** The app will automatically download CLIP models (~600MB) on first run. Models are cached in the `models/` directory for future use.
 
-## 🎯 Usage
+## [▶] USAGE
 
 1.  **Launch the app** with `npm start`
 2.  **Enter your image folder path** (e.g., `C:\Users\You\Pictures`)
@@ -72,7 +79,7 @@
     -   **Double-click** images for lightbox view
     -   **Shift+Click** to highlight semantic neighbors
 
-## ⚡ Performance
+## [⚡] PERFORMANCE
 
 Compared to the browser-based version:
 
@@ -84,7 +91,7 @@ Compared to the browser-based version:
 
 *Benchmarks on Windows 11, RTX 3060, 100 images*
 
-## 🏗️ Technologies
+## [⬡] TECHNOLOGIES
 
 *   **Electron**: Cross-platform desktop framework
 *   **ONNX Runtime**: Native AI inference with GPU support (DirectML/CoreML)
@@ -92,11 +99,11 @@ Compared to the browser-based version:
 *   **Sharp**: High-performance Node.js image processing
 *   **Self-Organizing Maps**: Unsupervised clustering for spatial layout
 
-## 📖 Documentation
+## [?] DOCUMENTATION
 
 - **[README_ELECTRON.md](README_ELECTRON.md)** - Detailed desktop app documentation, troubleshooting, and architecture
 
-## 🔨 Building for Distribution
+## [⚙] BUILDING FOR DISTRIBUTION
 
 To create distributable packages:
 
@@ -106,7 +113,7 @@ npm run dist
 
 This will create installers in the `dist/` folder for your platform.
 
-## 🛠️ Development
+## [◈] DEVELOPMENT
 
 **Architecture:**
 ```
@@ -125,11 +132,11 @@ Renderer Process (Chromium)
 - Real-time progress events
 - Hardware-accelerated inference
 
-## 📜 License
+## [©] LICENSE
 
 MIT
 
-## 🙏 Credits
+## [★] CREDITS
 
 - **CLIP**: OpenAI's Contrastive Language-Image Pre-training
 - **ONNX Runtime**: Microsoft's cross-platform ML inference engine
