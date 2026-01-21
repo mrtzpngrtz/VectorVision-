@@ -3,20 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ImageX - Visual Explorer</title>
-    <link rel="stylesheet" href="css/style.css">
-    <style>
-        body { margin: 0; overflow: hidden; font-family: sans-serif; }
-        #app { display: flex; height: 100vh; }
-        #sidebar { width: 300px; background: #2c3e50; color: white; padding: 20px; display: flex; flex-direction: column; }
-        #main { flex: 1; position: relative; background: #ecf0f1; overflow: hidden; cursor: grab; }
-        #main:active { cursor: grabbing; }
-        #map-container { width: 4000px; height: 4000px; position: absolute; transform-origin: 0 0; background-image: radial-gradient(#bdc3c7 1px, transparent 1px); background-size: 20px 20px; transition: transform 0.1s ease-out; }
-        input, button { width: 100%; margin-bottom: 10px; padding: 10px; box-sizing: border-box; }
-        .image-node { position: absolute; transition: all 0.5s ease; cursor: pointer; border: 2px solid transparent; }
-        .image-node:hover { z-index: 1000; transform: scale(1.5); border-color: #3498db; }
-        .image-node img { width: 100%; height: 100%; object-fit: cover; }
-    </style>
+    <title>ImageVector - Visual Explorer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css?v=modern_v1">
+    
     <!-- Load TensorFlow.js and MobileNet -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.14.0/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.1/dist/mobilenet.min.js"></script>
@@ -25,19 +15,132 @@
 <body>
     <div id="app">
         <div id="sidebar">
-            <h2>ImageX (GPU Mode)</h2>
-            <input type="text" id="folder-path" placeholder="Enter folder path (e.g. C:/Images)">
-            <button onclick="scanFolder()">Scan Folder</button>
-            <hr>
-            <input type="text" id="search-input" placeholder="Search keywords...">
-            <button onclick="searchImages()">Search</button>
-            <div id="status">Ready</div>
-            <div id="progress" style="margin-top:10px; font-size: 0.8em; color: #bdc3c7;"></div>
+            <div class="header">
+                <h2>ImageVector</h2>
+            </div>
+
+            <div class="control-group">
+                <label>View Mode</label>
+                <div class="radio-group">
+                    <button onclick="setViewMode(false)" id="view-2d" class="radio-btn active">2D Flat</button>
+                    <button onclick="setViewMode(true)" id="view-3d" class="radio-btn">3D Space</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>Sorting</label>
+                <div class="radio-group">
+                    <button onclick="setSorting('grid')" id="sort-grid" class="radio-btn">Grid</button>
+                    <button onclick="setSorting('semantic')" id="sort-semantic" class="radio-btn active">AI</button>
+                    <button onclick="setSorting('color')" id="sort-color" class="radio-btn">Color</button>
+                    <button onclick="setSorting('lightness')" id="sort-lightness" class="radio-btn">Light</button>
+                </div>
+            </div>
+            
+            <div class="control-group" style="border-top: 1px solid var(--border); padding-top: 20px;">
+                <div class="control-subgroup">
+                    <label>Library</label>
+                    <input type="text" id="folder-path" placeholder="C:/Photos">
+                </div>
+
+                <button onclick="scanFolder()" class="primary-btn">Scan Library</button>
+                
+                <div id="status-container" style="display: none;">
+                    <div class="status-box">
+                        <div id="status" class="scifi-text" style="font-size: 0.7rem;">Ready</div>
+                        <div class="loader" id="main-loader" style="margin-top: 8px;"></div>
+                    </div>
+                    <div id="progress" class="info-pane" style="margin-top: 8px;"></div>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>Filter</label>
+                <div style="display: flex; border: 1px solid var(--border);">
+                    <input type="text" id="search-input" placeholder="Search objects..." style="flex: 1; border: none; padding-left: 10px; margin-bottom: 0;">
+                    <button onclick="clearAll()" class="secondary-btn" style="width: 40px; border: none; border-left: 1px solid var(--border); padding: 0;" title="Clear All Highlights">✕</button>
+                </div>
+                <button onclick="searchImages()" class="secondary-btn">Search</button>
+            </div>
+
+            <div class="control-group">
+                <div id="view-presets" style="display:none;">
+                    <button id="auto-move-toggle" onclick="toggleAutoMove()" class="secondary-btn" style="font-size: 0.7rem;">Auto-Drift: ON</button>
+                    
+                    <div id="drift-settings" style="margin-top: 12px; display: flex; flex-direction: column; gap: 10px;">
+                        <div class="control-subgroup">
+                            <label style="font-size: 0.6rem;">Drift Speed</label>
+                            <input type="range" id="drift-speed-slider" min="0.1" max="2.0" step="0.1" value="0.5" oninput="updateDriftSpeed(this.value)" style="margin-bottom: 0;">
+                        </div>
+                        <div class="control-subgroup">
+                            <label style="font-size: 0.6rem;">Change Interval</label>
+                            <input type="range" id="drift-interval-slider" min="5" max="60" step="5" value="20" oninput="updateDriftInterval(this.value)" style="margin-bottom: 0;">
+                        </div>
+                    </div>
+                </div>
+
+                <div id="z-scale-control" style="display:none;">
+                    <div class="control-subgroup">
+                        <label style="font-size: 0.65rem;">Depth Scale</label>
+                        <input type="range" id="z-slider" min="0" max="3" step="0.1" value="1" oninput="updateZScale(this.value)" style="margin-bottom: 0;">
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-group" style="margin-top: auto; border-top: 1px solid var(--border); padding-top: 20px;">
+                <label>System Diagnostics</label>
+                <div id="semantic-info" class="info-pane" style="height: 100px;">
+                    <span style="opacity: 0.5;">WAITING FOR INPUT...</span>
+                </div>
+                <div style="font-size: 0.6rem; color: var(--fg); opacity: 0.3; margin-top: 10px; line-height: 1.3; font-family: monospace;">
+                    NEURAL_NET: MOBILENET_V2<br>
+                    OBJECT_DET: COCO_SSD<br>
+                    SPATIAL_MAP: SOM_CLUSTERING
+                </div>
+            </div>
+
         </div>
+        
         <div id="main">
             <div id="map-container"></div>
+            
+            <div id="fps-counter" style="position: absolute; top: 10px; right: 10px; font-family: monospace; font-size: 10px; opacity: 0.5; z-index: 1000; pointer-events: none;">FPS: --</div>
+
+            <div class="ui-toggle-btn" onclick="toggleUI()" title="Toggle UI (H)">UI</div>
+
+            <button id="theme-toggle" class="theme-toggle-map" title="Toggle Theme">
+                <div class="theme-icon"></div>
+            </button>
+
+            <!-- Map Controls -->
+            <div id="map-controls">
+                <div class="control-grid">
+                    <button class="map-btn spacer"></button>
+                    <button onclick="nav('up')" class="map-btn" title="Up">↑</button>
+                    <button class="map-btn spacer"></button>
+                    
+                    <button onclick="nav('left')" class="map-btn" title="Left">←</button>
+                    <button onclick="centerMap()" class="map-btn" title="Reset View">⟲</button>
+                    <button onclick="nav('right')" class="map-btn" title="Right">→</button>
+                    
+                    <button class="map-btn spacer"></button>
+                    <button onclick="nav('down')" class="map-btn" title="Down">↓</button>
+                    <button class="map-btn spacer"></button>
+                </div>
+                <div class="control-grid zoom-grid">
+                    <button onclick="zoomIn()" class="map-btn" title="Zoom In">+</button>
+                    <button onclick="zoomOut()" class="map-btn" title="Zoom Out">-</button>
+                </div>
+            </div>
         </div>
     </div>
+
+    <!-- Lightbox -->
+    <div id="lightbox">
+        <img id="lightbox-img">
+        <div class="lightbox-close" onclick="document.getElementById('lightbox').style.display='none'">&times;</div>
+    </div>
+
     <script src="js/app.js"></script>
 </body>
 </html>

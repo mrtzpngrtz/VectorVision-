@@ -1,5 +1,5 @@
 {
-  "name": "imagex",
+  "name": "imagevector",
   "version": "1.0.0",
   "description": "Visual image exploration and organization tool",
   "main": "server/index.js",

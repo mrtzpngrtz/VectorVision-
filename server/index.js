@@ -9,7 +9,7 @@ const PORT = 3000;
 const DB_FILE = path.join(__dirname, 'database.json');
 
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '500mb' }));
 app.use(express.static(path.join(__dirname, '../public')));
 
 // API Endpoint to list images in a directory
@@ -25,12 +25,22 @@ app.post('/api/scan', async (req, res) => {
         const images = files.filter(file => {
             const ext = path.extname(file).toLowerCase();
             return ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext);
-        }).map(file => ({
-            name: file,
-            path: path.join(folderPath, file),
-            url: `/image?path=${encodeURIComponent(path.join(folderPath, file))}`,
-            thumbUrl: `/thumbnail?path=${encodeURIComponent(path.join(folderPath, file))}`
-        }));
+        }).map(file => {
+            const filePath = path.join(folderPath, file);
+            let created = 0;
+            try {
+                const stats = fs.statSync(filePath);
+                created = stats.birthtimeMs || stats.mtimeMs;
+            } catch(e) {}
+            
+            return {
+                name: file,
+                path: filePath,
+                created: created,
+                url: `/image?path=${encodeURIComponent(filePath)}`,
+                thumbUrl: `/thumbnail?path=${encodeURIComponent(filePath)}`
+            };
+        });
 
         res.json({ images });
     } catch (error) {
