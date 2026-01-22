@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ImageVector - Desktop</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=modern_v1">
+    <link rel="stylesheet" href="css/style.css?v=modern_v4">
 </head>
 <body>
     <div id="app">
@@ -14,109 +14,97 @@
                 <h2>ImageVector</h2>
             </div>
 
+            <!-- Library -->
             <div class="control-group">
-                <label>View Mode</label>
-                <div class="radio-group">
-                    <button onclick="setViewMode(false)" id="view-2d" class="radio-btn active">2D Flat</button>
-                    <button onclick="setViewMode(true)" id="view-3d" class="radio-btn">3D Space</button>
+                <label>Library</label>
+                <div class="input-group">
+                    <input type="text" id="folder-path" placeholder="Select folder..." readonly onclick="selectFolderDialog()">
+                    <button onclick="selectFolderDialog()" class="icon-btn" title="Browse">⊞</button>
+                </div>
+                <button onclick="scanFolder()" class="primary-btn">Scan</button>
+            </div>
+
+            <!-- Status - Compact, always visible -->
+            <div class="control-group">
+                <div id="status" class="status-text">Ready</div>
+                <div id="status-progress" style="display: none;">
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" id="progress-bar"></div>
+                        <div class="progress-text" id="progress-percentage">0%</div>
+                    </div>
+                    <div class="stats-compact">
+                        <span id="stat-processed">0</span> / <span id="stat-total">0</span> 
+                        <span style="margin-left: 12px; opacity: 0.5;"><span id="stat-speed">0/s</span></span>
+                        <span style="margin-left: 12px; opacity: 0.5;">ETA: <span id="stat-eta">--</span></span>
+                    </div>
                 </div>
             </div>
 
+            <!-- Display -->
             <div class="control-group">
-                <label>Sorting</label>
+                <label>Display</label>
                 <div class="radio-group">
+                    <button onclick="setViewMode(false)" id="view-2d" class="radio-btn active">2D</button>
+                    <button onclick="setViewMode(true)" id="view-3d" class="radio-btn">3D</button>
+                </div>
+                <div class="radio-group" style="margin-top: 8px;">
                     <button onclick="setSorting('grid')" id="sort-grid" class="radio-btn">Grid</button>
                     <button onclick="setSorting('semantic')" id="sort-semantic" class="radio-btn active">AI</button>
                     <button onclick="setSorting('color')" id="sort-color" class="radio-btn">Color</button>
                     <button onclick="setSorting('lightness')" id="sort-lightness" class="radio-btn">Light</button>
                 </div>
             </div>
-            
-            <div class="control-group" style="border-top: 1px solid var(--border); padding-top: 20px;">
-                <div class="control-subgroup">
-                    <label>Library</label>
-                    <div style="display: flex; gap: 8px;">
-                        <input type="text" id="folder-path" placeholder="No folder selected" readonly style="flex: 1; cursor: pointer; margin-bottom: 0;" onclick="selectFolderDialog()">
-                        <button onclick="selectFolderDialog()" class="secondary-btn" style="width: 40px; padding: 0; margin-bottom: 0; font-family: monospace; font-size: 16px;" title="Browse">⊞</button>
-                    </div>
-                </div>
 
-                <button onclick="scanFolder()" class="primary-btn" style="margin-top: 12px;">Scan Library</button>
-                <button onclick="rescanFolder()" class="secondary-btn" style="margin-top: 8px;">Force Rescan</button>
-                
-                <div id="status-container" style="display: none;">
-                    <div class="status-box">
-                        <div id="status" class="scifi-text" style="font-size: 0.7rem;">Ready</div>
-                        <div class="progress-bar-container">
-                            <div class="progress-bar" id="progress-bar"></div>
-                            <div class="progress-text" id="progress-percentage">0%</div>
-                        </div>
-                    </div>
-                    <div class="stats-grid">
-                        <div class="stat-item">
-                            <div class="stat-label">PROCESSED</div>
-                            <div class="stat-value" id="stat-processed">0</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-label">TOTAL</div>
-                            <div class="stat-value" id="stat-total">0</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-label">SPEED</div>
-                            <div class="stat-value" id="stat-speed">0/s</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-label">ETA</div>
-                            <div class="stat-value" id="stat-eta">--</div>
-                        </div>
-                    </div>
-                    <div id="progress" class="current-file"></div>
-                </div>
-            </div>
-
+            <!-- Filter -->
             <div class="control-group">
                 <label>Filter</label>
-                <div style="display: flex; border: 1px solid var(--border);">
-                    <input type="text" id="search-input" placeholder="Search objects..." style="flex: 1; border: none; padding-left: 10px; margin-bottom: 0;">
-                    <button onclick="clearAll()" class="secondary-btn" style="width: 40px; border: none; border-left: 1px solid var(--border); padding: 0;" title="Clear All Highlights">✕</button>
+                <div class="input-group">
+                    <input type="text" id="search-input" placeholder="Search tags...">
+                    <button onclick="searchImages()" class="icon-btn" title="Search">→</button>
+                    <button onclick="clearAll()" class="icon-btn" title="Clear">✕</button>
                 </div>
-                <button onclick="searchImages()" class="secondary-btn">Search</button>
             </div>
 
-            <div class="control-group">
-                <div id="view-presets" style="display:none;">
-                    <button id="auto-move-toggle" onclick="toggleAutoMove()" class="secondary-btn" style="font-size: 0.7rem;">Auto-Drift: ON</button>
+            <!-- Info & Diagnostics -->
+            <div class="control-group" style="margin-top: auto;">
+                <div id="semantic-info" class="info-pane">
+                    <span style="opacity: 0.4;">Hover image for info...</span>
+                </div>
+                <div id="system-specs">
+                    <span id="hw-accel-status">CHECKING...</span>
+                </div>
+            </div>
+
+            <!-- Advanced - Collapsible -->
+            <div class="control-group collapsible">
+                <label class="collapsible-header" onclick="toggleSection('advanced-section')">
+                    <span>Advanced</span>
+                    <span class="chevron">▼</span>
+                </label>
+                <div id="advanced-section" class="collapsible-content" style="display: none;">
+                    <button onclick="rescanFolder()" class="secondary-btn compact">Force Rescan</button>
                     
-                    <div id="drift-settings" style="margin-top: 12px; display: flex; flex-direction: column; gap: 10px;">
-                        <div class="control-subgroup">
-                            <label style="font-size: 0.6rem;">Drift Speed</label>
-                            <input type="range" id="drift-speed-slider" min="0.1" max="2.0" step="0.1" value="0.5" oninput="updateDriftSpeed(this.value)" style="margin-bottom: 0;">
-                        </div>
-                        <div class="control-subgroup">
-                            <label style="font-size: 0.6rem;">Change Interval</label>
-                            <input type="range" id="drift-interval-slider" min="5" max="60" step="5" value="20" oninput="updateDriftInterval(this.value)" style="margin-bottom: 0;">
+                    <div id="view-presets" style="display:none; margin-top: 12px;">
+                        <button id="auto-move-toggle" onclick="toggleAutoMove()" class="secondary-btn compact">Auto-Drift: ON</button>
+                        
+                        <div id="drift-settings" style="margin-top: 12px;">
+                            <div class="control-subgroup">
+                                <label>Drift Speed</label>
+                                <input type="range" id="drift-speed-slider" min="0.1" max="2.0" step="0.1" value="0.5" oninput="updateDriftSpeed(this.value)">
+                            </div>
+                            <div class="control-subgroup">
+                                <label>Change Interval</label>
+                                <input type="range" id="drift-interval-slider" min="5" max="60" step="5" value="20" oninput="updateDriftInterval(this.value)">
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <div id="z-scale-control" style="display:none;">
-                    <div class="control-subgroup">
-                        <label style="font-size: 0.65rem;">Depth Scale</label>
-                        <input type="range" id="z-slider" min="0" max="3" step="0.1" value="1" oninput="updateZScale(this.value)" style="margin-bottom: 0;">
+                    <div id="z-scale-control" style="display:none; margin-top: 12px;">
+                        <div class="control-subgroup">
+                            <label>Depth Scale</label>
+                            <input type="range" id="z-slider" min="0" max="3" step="0.1" value="1" oninput="updateZScale(this.value)">
+                        </div>
                     </div>
-                </div>
-            </div>
-
-            <div class="control-group" style="margin-top: auto; border-top: 1px solid var(--border); padding-top: 20px;">
-                <label>System Diagnostics</label>
-                <div id="semantic-info" class="info-pane" style="height: 80px;">
-                    <span style="opacity: 0.5;">HOVER IMAGE FOR INFO...</span>
-                </div>
-                <div id="system-specs" style="font-size: 0.6rem; color: var(--fg); opacity: 0.3; margin-top: 10px; line-height: 1.3; font-family: monospace;">
-                    NEURAL_NET: CLIP_VIT<br>
-                    ZERO_SHOT: CLIP_TEXT<br>
-                    HARDWARE_ACCEL: <span id="hw-accel-status">CHECKING...</span><br>
-                    SPATIAL_MAP: SOM_CLUSTERING
                 </div>
             </div>
 
@@ -125,7 +113,7 @@
         <div id="main">
             <div id="map-container"></div>
             
-            <div id="fps-counter" style="position: absolute; top: 10px; right: 10px; font-family: monospace; font-size: 10px; opacity: 0.5; z-index: 1000; pointer-events: none;">FPS: --</div>
+            <div id="fps-counter">FPS: --</div>
 
             <div class="ui-toggle-btn" onclick="toggleUI()" title="Toggle UI (H)">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
@@ -133,10 +121,6 @@
                     <line x1="14" y1="2" x2="2" y2="14"/>
                 </svg>
             </div>
-
-            <button id="theme-toggle" class="theme-toggle-map" title="Toggle Theme">
-                <div class="theme-icon"></div>
-            </button>
 
             <!-- Map Controls -->
             <div id="map-controls">

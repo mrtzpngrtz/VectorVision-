@@ -318,18 +318,6 @@ class CanvasRenderer {
                 size
             );
             
-            // Draw border if hovered
-            if (isHovered) {
-                this.ctx.strokeStyle = '#ffffff';
-                this.ctx.lineWidth = 2;
-                this.ctx.strokeRect(
-                    screenX - size / 2,
-                    screenY - size / 2,
-                    size,
-                    size
-                );
-            }
-            
             this.ctx.restore();
         } else {
             // Draw placeholder while loading

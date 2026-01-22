@@ -5,14 +5,14 @@ const statusDiv = document.getElementById('status');
 const progressDiv = document.getElementById('progress');
 const semanticInfoDiv = document.getElementById('semantic-info');
 const loaderEl = document.getElementById('main-loader');
-const statusContainer = document.getElementById('status-container');
+const statusProgress = document.getElementById('status-progress');
 const fpsCounterEl = document.getElementById('fps-counter');
 
 // Check if running in Electron
 const isElectron = window.electronAPI !== undefined;
 
 function setLoading(active) {
-    if (statusContainer) statusContainer.style.display = active ? 'block' : 'none';
+    if (statusProgress) statusProgress.style.display = active ? 'block' : 'none';
     if (loaderEl) loaderEl.style.display = active ? 'block' : 'none';
     if (active) statusDiv.classList.add('analyzing');
     else statusDiv.classList.remove('analyzing');
@@ -25,6 +25,19 @@ let som3D = null;
 
 function toggleUI() {
     document.body.classList.toggle('ui-hidden');
+}
+
+function toggleSection(sectionId) {
+    const section = document.getElementById(sectionId);
+    const header = event.target.closest('.collapsible-header');
+    
+    if (section.style.display === 'none') {
+        section.style.display = 'block';
+        if (header) header.classList.add('expanded');
+    } else {
+        section.style.display = 'none';
+        if (header) header.classList.remove('expanded');
+    }
 }
 
 // --- Lightbox Logic ---
@@ -892,29 +905,10 @@ function displayImages(imageList) {
             }
             content += `POS: [${Math.round(x)},${Math.round(y)},${Math.round(z)}]`;
             semanticInfoDiv.innerHTML = content;
-            if (is3D) return;
-            mapContainer.classList.add('node-hovered'); el.classList.add('is-hovered');
-            imageNodeElements.forEach((node) => {
-                if (el === node || !node._visible) return;
-                const dx = parseFloat(node.style.getPropertyValue('--tx')) - x;
-                const dy = parseFloat(node.style.getPropertyValue('--ty')) - y;
-                const dist = Math.sqrt(dx*dx + dy*dy);
-                if (dist < 200) { 
-                    const force = (200 - dist) / 200;
-                    node.style.setProperty('--px', `${(dx/dist)*20*force}px`);
-                    node.style.setProperty('--py', `${(dy/dist)*20*force}px`);
-                    node.classList.add('is-pushed');
-                }
-            });
+            el.classList.add('is-hovered');
         };
         el.onmouseleave = () => {
-            mapContainer.classList.remove('node-hovered'); el.classList.remove('is-hovered');
-            imageNodeElements.forEach(node => {
-                if(node.classList.contains('is-pushed')) {
-                    node.style.setProperty('--px', `0px`); node.style.setProperty('--py', `0px`);
-                    node.classList.remove('is-pushed');
-                }
-            });
+            el.classList.remove('is-hovered');
         };
         el.oncontextmenu = (e) => { 
             e.preventDefault(); 
@@ -1133,7 +1127,7 @@ async function searchImages() {
 // --- Navigation & Transforms ---
 const main = document.getElementById('main');
 let scale = 1, pointX = 0, pointY = 0;
-let rotX = -20, rotY = 45, transX = 0, transY = 0, transZ = -2000;
+let rotX = 0, rotY = 0, transX = 0, transY = 0, transZ = -2000;
 let isDragging = false, dragButton = 0, startX = 0, startY = 0;
 let isSpacePressed = false;
 let isAutoMoveEnabled = true;
@@ -1232,7 +1226,7 @@ function updateTransform() {
         mapContainer.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
     }
 }
-function reset3DView() { rotX = -20; rotY = 45; transX = 0; transY = 0; transZ = -2000; updateTransform(); }
+function reset3DView() { rotX = 0; rotY = 0; transX = 0; transY = 0; transZ = -2000; updateTransform(); }
 function centerMap() {
     if (is3D) reset3DView();
     else {
@@ -1267,7 +1261,6 @@ if (mapControls) mapControls.addEventListener('mousedown', (e) => e.stopPropagat
 main.addEventListener('contextmenu', (e) => e.preventDefault());
 main.addEventListener('mousedown', (e) => {
     if (e.target === main || e.target === mapContainer) {
-        clearAll();
         clearHighlight();
     }
     if (isSpacePressed || e.button === 2) dragButton = 2; 
@@ -1313,21 +1306,14 @@ themeToggle.onclick = () => {
     const isDark = document.body.classList.contains('dark-mode');
     localStorage.setItem('theme', isDark ? 'dark' : 'light');
 };
-// Live search functionality
+
+// Add Enter key support for search input
 const searchInput = document.getElementById('search-input');
 if (searchInput) {
-    let searchTimeout;
-    searchInput.addEventListener('input', (e) => {
-        // Debounce search for 500ms
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-            const value = e.target.value.trim();
-            if (value) {
-                searchImages();
-            } else {
-                clearAll();
-            }
-        }, 500);
+    searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            searchImages();
+        }
     });
 }
 
