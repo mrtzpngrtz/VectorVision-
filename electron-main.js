@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const analyzer = require('./server/analyzer');
 
-const DB_FILE = path.join(__dirname, 'server', 'database.json');
+const LIBRARIES_FILE = path.join(__dirname, 'server', 'libraries.json');
 let mainWindow;
 
 function createWindow() {
@@ -81,11 +81,15 @@ ipcMain.handle('scan-folder', async (event, folderPath) => {
     }
 });
 
-// Load database
-ipcMain.handle('load-database', async () => {
-    if (fs.existsSync(DB_FILE)) {
+// Load database for a specific library
+ipcMain.handle('load-database', async (event, libraryId) => {
+    const dbFile = libraryId 
+        ? path.join(__dirname, 'server', `db_${libraryId}.json`)
+        : path.join(__dirname, 'server', 'database.json');
+    
+    if (fs.existsSync(dbFile)) {
         try {
-            const data = fs.readFileSync(DB_FILE, 'utf8');
+            const data = fs.readFileSync(dbFile, 'utf8');
             return { data: JSON.parse(data) };
         } catch (e) {
             return { data: null };
@@ -94,13 +98,53 @@ ipcMain.handle('load-database', async () => {
     return { data: null };
 });
 
-// Save database
-ipcMain.handle('save-database', async (event, data) => {
+// Save database for a specific library
+ipcMain.handle('save-database', async (event, data, libraryId) => {
     try {
-        fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+        const dbFile = libraryId 
+            ? path.join(__dirname, 'server', `db_${libraryId}.json`)
+            : path.join(__dirname, 'server', 'database.json');
+        
+        fs.writeFileSync(dbFile, JSON.stringify(data, null, 2));
         return { success: true };
     } catch (err) {
         throw new Error('Failed to save database');
+    }
+});
+
+// Get libraries list
+ipcMain.handle('get-libraries', async () => {
+    if (fs.existsSync(LIBRARIES_FILE)) {
+        try {
+            const data = fs.readFileSync(LIBRARIES_FILE, 'utf8');
+            return { libraries: JSON.parse(data) };
+        } catch (e) {
+            return { libraries: [] };
+        }
+    }
+    return { libraries: [] };
+});
+
+// Save libraries list
+ipcMain.handle('save-libraries', async (event, libraries) => {
+    try {
+        fs.writeFileSync(LIBRARIES_FILE, JSON.stringify(libraries, null, 2));
+        return { success: true };
+    } catch (err) {
+        throw new Error('Failed to save libraries');
+    }
+});
+
+// Delete library database
+ipcMain.handle('delete-library-db', async (event, libraryId) => {
+    try {
+        const dbFile = path.join(__dirname, 'server', `db_${libraryId}.json`);
+        if (fs.existsSync(dbFile)) {
+            fs.unlinkSync(dbFile);
+        }
+        return { success: true };
+    } catch (err) {
+        throw new Error('Failed to delete library database');
     }
 });
 
@@ -115,13 +159,6 @@ ipcMain.handle('analyze-images', async (event, imagePaths) => {
         for (let i = 0; i < total; i++) {
             const imgPath = imagePaths[i];
             
-            // Send progress update
-            event.sender.send('analysis-progress', {
-                current: i + 1,
-                total: total,
-                fileName: path.basename(imgPath)
-            });
-            
             try {
                 const result = await analyzer.extractFeatures(imgPath);
                 if (result) {
@@ -132,12 +169,27 @@ ipcMain.handle('analyze-images', async (event, imagePaths) => {
                         color: result.color,
                         colorVector: result.colorVector
                     });
+                    
+                    // Send progress update WITH keywords
+                    event.sender.send('analysis-progress', {
+                        current: i + 1,
+                        total: total,
+                        fileName: path.basename(imgPath),
+                        keywords: result.keywords
+                    });
                 }
             } catch (err) {
                 console.error(`Error analyzing ${imgPath}:`, err);
                 results.push({
                     path: imgPath,
                     error: err.message
+                });
+                
+                // Send progress even on error
+                event.sender.send('analysis-progress', {
+                    current: i + 1,
+                    total: total,
+                    fileName: path.basename(imgPath)
                 });
             }
         }

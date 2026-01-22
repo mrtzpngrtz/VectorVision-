@@ -11,6 +11,8 @@ Thumbs.db
 
 # Generated Data
 server/database.json
+server/db_lib_*.json
+server/libraries.json
 
 # AI Models (downloaded at runtime)
 models/

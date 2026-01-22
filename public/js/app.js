@@ -2,6 +2,7 @@ let images = [];
 let hardwareAccel = 'NATIVE_ONNX';
 const mapContainer = document.getElementById('map-container');
 const statusDiv = document.getElementById('status');
+const statusDescDiv = document.getElementById('status-description');
 const progressDiv = document.getElementById('progress');
 const semanticInfoDiv = document.getElementById('semantic-info');
 const loaderEl = document.getElementById('main-loader');
@@ -11,9 +12,57 @@ const fpsCounterEl = document.getElementById('fps-counter');
 // Check if running in Electron
 const isElectron = window.electronAPI !== undefined;
 
+// Helper function to update status with description
+function updateStatus(code, description = null) {
+    statusDiv.textContent = code;
+    if (statusDescDiv && description) {
+        statusDescDiv.textContent = description;
+    } else if (statusDescDiv) {
+        // Auto-generate description based on status code
+        const descriptions = {
+            'TRAINING': 'Training neural network to organize images by similarity...',
+            'ANALYZING_NATIVE': 'Extracting visual features and identifying objects in images...',
+            'ANALYZING_STREAM': 'Processing images with AI to detect objects and themes...',
+            'FILESYSTEM_SCAN': 'Scanning folder for image files...',
+            'MAPPING_SEMANTIC_2D': 'Organizing images by semantic similarity in 2D space...',
+            'MAPPING_SEMANTIC_3D': 'Organizing images by semantic similarity in 3D space...',
+            'MAPPING_COLOR_SPACE': 'Arranging images by color relationships...',
+            'MAPPING_LIGHTNESS': 'Sorting images by brightness values...',
+            'LOADING_NATIVE_CLIP': 'Loading AI vision model for image analysis...',
+            'BOOTSTRAPPING_CLIP': 'Initializing image recognition system...',
+            'SYSTEM_READY': 'All systems operational. Ready to explore your images.',
+            'FILTERING...': 'Searching images and reorganizing matches...',
+            'CLUSTERING': 'Grouping matched images by visual similarity...',
+            'INIT_DB_LOAD': 'Loading saved analysis data...',
+            'ANALYSIS_REQUIRED': 'New images detected. Preparing to analyze...',
+            'FORCING_RESCAN': 'Re-analyzing all images with latest AI models...',
+            'LOADING_LIBRARY': 'Loading image library...',
+            'SCANNING_NEW_LIBRARY': 'Indexing new image library...'
+        };
+        
+        // Check if it starts with certain patterns
+        if (code.startsWith('TRAINING:')) {
+            statusDescDiv.textContent = 'Training neural network to organize images by similarity...';
+        } else if (code.startsWith('CLUSTERING:')) {
+            statusDescDiv.textContent = 'Grouping matched images by visual similarity...';
+        } else if (descriptions[code]) {
+            statusDescDiv.textContent = descriptions[code];
+        } else {
+            statusDescDiv.textContent = '';
+        }
+    }
+}
+
+// Library Management Variables
+let libraries = [];
+let currentLibrary = null;
+let pendingLibraryAction = null;
+
 function setLoading(active) {
-    if (statusProgress) statusProgress.style.display = active ? 'block' : 'none';
-    if (loaderEl) loaderEl.style.display = active ? 'block' : 'none';
+    const loadingOverlay = document.getElementById('loading-overlay');
+    if (loadingOverlay) {
+        loadingOverlay.style.display = active ? 'flex' : 'none';
+    }
     if (active) statusDiv.classList.add('analyzing');
     else statusDiv.classList.remove('analyzing');
 }
@@ -165,10 +214,14 @@ async function selectFolderDialog() {
 
 // --- App Logic ---
 async function scanFolder() {
-    const folderPath = document.getElementById('folder-path').value;
-    if (!folderPath || folderPath === 'No folder selected') {
-        // If no folder selected, open dialog
-        selectFolderDialog();
+    if (!currentLibrary) {
+        statusDiv.textContent = 'ERR: NO_LIBRARY_SELECTED';
+        return;
+    }
+    
+    const folderPath = currentLibrary.path;
+    if (!folderPath) {
+        statusDiv.textContent = 'ERR: NO_FOLDER_PATH';
         return;
     }
 
@@ -179,7 +232,8 @@ async function scanFolder() {
 
     statusDiv.textContent = 'INIT_DB_LOAD';
     try {
-        const dbRes = await window.electronAPI.loadDatabase();
+        const libraryId = currentLibrary ? currentLibrary.id : null;
+        const dbRes = await window.electronAPI.loadDatabase(libraryId);
         let dbData = {};
         if (dbRes.data) dbData = dbRes.data; 
         if (Array.isArray(dbRes.data)) {
@@ -222,8 +276,13 @@ async function scanFolder() {
     }
 }
 
-async function rescanFolder() {
-    const folderPath = document.getElementById('folder-path').value;
+async function rescanFolder(skipConfirmation = false) {
+    if (!currentLibrary) {
+        statusDiv.textContent = 'ERR: NO_LIBRARY_SELECTED';
+        return;
+    }
+    
+    const folderPath = currentLibrary.path;
     if (!folderPath) {
         statusDiv.textContent = 'ERR: NO_FOLDER_PATH';
         return;
@@ -234,10 +293,17 @@ async function rescanFolder() {
         return;
     }
     
-    // Use native confirm
-    if (!confirm('FORCE RESCAN: Re-analyze all images with updated categories?\n\nThis will take several minutes for large libraries.')) {
-        statusDiv.textContent = 'RESCAN_CANCELLED';
-        return;
+    // Use custom confirm only if not already confirmed
+    if (!skipConfirmation) {
+        const confirmed = await customConfirm(
+            'FORCE RESCAN',
+            'Re-analyze all images with updated categories?\n\nThis will take several minutes for large libraries.'
+        );
+        
+        if (!confirmed) {
+            statusDiv.textContent = 'RESCAN_CANCELLED';
+            return;
+        }
     }
 
     statusDiv.textContent = 'FILESYSTEM_SCAN';
@@ -267,7 +333,7 @@ async function rescanFolder() {
 // Native image processing using Electron IPC
 async function processImagesNative(toAnalyzeList) {
     try {
-        statusDiv.textContent = 'LOADING_NATIVE_CLIP';
+        updateStatus('LOADING_NATIVE_CLIP');
         setLoading(true);
 
         const startTime = Date.now();
@@ -291,8 +357,13 @@ async function processImagesNative(toAnalyzeList) {
         if (statTotal) statTotal.textContent = total;
 
         // Set up progress listener
+        const detectedTagsSet = new Set();
+        const detectedTagsArray = [];
+        const detectedTagsEl = document.getElementById('detected-tags');
+        const maxDisplayTags = 12; // Max tags to show at once
+        
         window.electronAPI.onAnalysisProgress((progress) => {
-            const { current, total: progressTotal, fileName } = progress;
+            const { current, total: progressTotal, fileName, keywords } = progress;
             
             // Filename display removed per user request
             
@@ -328,9 +399,29 @@ async function processImagesNative(toAnalyzeList) {
                     statEta.textContent = `${mins}m ${secs}s`;
                 }
             }
+            
+            // Update detected tags display as vertical ticker with auto-scroll
+            if (keywords && detectedTagsEl) {
+                keywords.forEach(kw => {
+                    const tag = kw.className || kw;
+                    if (!detectedTagsSet.has(tag)) {
+                        detectedTagsSet.add(tag);
+                        detectedTagsArray.push(tag);
+                        
+                        // Add new tag to ticker
+                        const tagEl = document.createElement('span');
+                        tagEl.className = 'tag-item';
+                        tagEl.textContent = tag;
+                        detectedTagsEl.appendChild(tagEl);
+                        
+                        // Auto-scroll to bottom to show latest tags
+                        detectedTagsEl.scrollTop = detectedTagsEl.scrollHeight;
+                    }
+                });
+            }
         });
 
-        statusDiv.textContent = 'ANALYZING_NATIVE';
+        updateStatus('ANALYZING_NATIVE');
         
         // Send to native analyzer
         const imagePaths = toAnalyzeList.map(img => img.path);
@@ -349,6 +440,9 @@ async function processImagesNative(toAnalyzeList) {
         
         // Clean up progress listener
         window.electronAPI.removeAnalysisProgressListener();
+        
+        // Clear tags display
+        if (detectedTagsEl) detectedTagsEl.innerHTML = '';
         
         train2D();
     } catch (error) {
@@ -559,14 +653,14 @@ async function train2D() {
     const vectors = images.filter(i => i.features).map(i => i.features);
     if (vectors.length === 0) return;
 
-    statusDiv.textContent = 'MAPPING_SEMANTIC_2D';
+    updateStatus('MAPPING_SEMANTIC_2D');
     setLoading(true);
     
     const gridSize = Math.ceil(Math.sqrt(vectors.length) * 1.5);
     const som = new SimpleSOM(gridSize, gridSize, 1, vectors[0].length, Math.max(1000, vectors.length * 2));
     
     await som.trainAsync(vectors, (c, t) => {
-        statusDiv.textContent = `TRAINING: ${Math.round(c/t*100)}%`;
+        updateStatus(`TRAINING: ${Math.round(c/t*100)}%`);
     });
 
     images.forEach((img, i) => {
@@ -581,6 +675,9 @@ async function train2D() {
     statusDiv.textContent = 'SYSTEM_READY';
     setLoading(false);
     displayImages(images);
+    
+    // Update library image count
+    updateLibraryImageCount();
 }
 
 function resolveCollisions2D() {
@@ -778,7 +875,8 @@ async function saveData() {
     });
     
     try {
-        await window.electronAPI.saveDatabase(dataToSave);
+        const libraryId = currentLibrary ? currentLibrary.id : null;
+        await window.electronAPI.saveDatabase(dataToSave, libraryId);
     } catch (error) {
         console.error('Error saving database:', error);
     }
@@ -906,9 +1004,48 @@ function displayImages(imageList) {
             content += `POS: [${Math.round(x)},${Math.round(y)},${Math.round(z)}]`;
             semanticInfoDiv.innerHTML = content;
             el.classList.add('is-hovered');
+            
+            // Show semantic similarity when Shift is pressed OR when a tag filter is active
+            const searchInput = document.getElementById('search-input');
+            const hasActiveFilter = searchInput && searchInput.value.trim().length > 0;
+            
+            if (isShiftPressed || hasActiveFilter) {
+                highlightNeighbors(index);
+            }
+            
+            // Update preview image - only show after loaded
+            const previewImg = document.getElementById('preview-img');
+            const previewPlaceholder = document.getElementById('preview-placeholder');
+            if (previewImg && previewPlaceholder) {
+                const imageUrl = isElectron ? `file:///${img.path.replace(/\\/g, '/')}` : (img.url || img.thumbUrl);
+                
+                // Preload image before showing
+                const tempImg = new Image();
+                tempImg.onload = () => {
+                    previewImg.src = imageUrl;
+                    previewImg.style.display = 'block';
+                    previewPlaceholder.style.display = 'none';
+                };
+                tempImg.onerror = () => {
+                    // On error, just keep placeholder visible
+                };
+                tempImg.src = imageUrl;
+            }
         };
         el.onmouseleave = () => {
             el.classList.remove('is-hovered');
+            
+            // Clear semantic highlighting
+            clearHighlight();
+            
+            // Clear preview image
+            const previewImg = document.getElementById('preview-img');
+            const previewPlaceholder = document.getElementById('preview-placeholder');
+            if (previewImg && previewPlaceholder) {
+                previewImg.style.display = 'none';
+                previewPlaceholder.style.display = 'block';
+                previewImg.src = '';
+            }
         };
         el.oncontextmenu = (e) => { 
             e.preventDefault(); 
@@ -947,6 +1084,9 @@ function displayImages(imageList) {
     });
     mapContainer.appendChild(fragment); mapContainer.className = is3D ? 'is-3d' : '';
     if (!is3D) centerMap();
+    
+    // Update word cloud after displaying images
+    updateWordCloud();
 }
 
 let isHighlighting = false;
@@ -962,16 +1102,16 @@ function highlightNeighbors(targetIndex) {
     if (!target.features) return;
     
     isHighlighting = true;
-    imageNodeElements.forEach(n => { n.style.opacity = '0.1'; n.style.border = 'none'; });
+    imageNodeElements.forEach(n => { n.style.opacity = '0.1'; });
     const dists = images.map((img, i) => {
         if (!img.features) return { idx: i, d: Infinity };
         let d = 0; for(let k=0; k<img.features.length; k++) d += (img.features[k] - target.features[k])**2;
         return { idx: i, d: d };
     });
     dists.sort((a,b) => a.d - b.d);
-    dists.slice(0, 10).forEach(item => {
+    dists.slice(0, 20).forEach(item => {
         const el = imageNodeElements.find(node => node.id === `node-${item.idx}`);
-        if (el) { el.style.opacity = '1'; el.style.border = '2px solid red'; }
+        if (el) { el.style.opacity = '1'; }
     });
 }
 
@@ -980,7 +1120,6 @@ function clearHighlight() {
     isHighlighting = false;
     imageNodeElements.forEach(n => { 
         n.style.opacity = '1'; 
-        n.style.border = 'none'; 
     });
 }
 
@@ -1081,6 +1220,39 @@ async function searchImages() {
             }
             content += `POS: [${Math.round(x)},${Math.round(y)},0]`;
             semanticInfoDiv.innerHTML = content;
+            el.classList.add('is-hovered');
+            
+            // Update preview image - only show after loaded
+            const previewImg = document.getElementById('preview-img');
+            const previewPlaceholder = document.getElementById('preview-placeholder');
+            if (previewImg && previewPlaceholder) {
+                const imageUrl = isElectron ? `file:///${img.path.replace(/\\/g, '/')}` : (img.url || img.thumbUrl);
+                
+                // Preload image before showing
+                const tempImg = new Image();
+                tempImg.onload = () => {
+                    previewImg.src = imageUrl;
+                    previewImg.style.display = 'block';
+                    previewPlaceholder.style.display = 'none';
+                };
+                tempImg.onerror = () => {
+                    // On error, just keep placeholder visible
+                };
+                tempImg.src = imageUrl;
+            }
+        };
+        
+        el.onmouseleave = () => {
+            el.classList.remove('is-hovered');
+            
+            // Clear preview image
+            const previewImg = document.getElementById('preview-img');
+            const previewPlaceholder = document.getElementById('preview-placeholder');
+            if (previewImg && previewPlaceholder) {
+                previewImg.style.display = 'none';
+                previewPlaceholder.style.display = 'block';
+                previewImg.src = '';
+            }
         };
         
         el.ondblclick = (e) => { 
@@ -1130,6 +1302,7 @@ let scale = 1, pointX = 0, pointY = 0;
 let rotX = 0, rotY = 0, transX = 0, transY = 0, transZ = -2000;
 let isDragging = false, dragButton = 0, startX = 0, startY = 0;
 let isSpacePressed = false;
+let isShiftPressed = false;
 let isAutoMoveEnabled = true;
 let driftSpeed = 0.5;
 let driftInterval = 20;
@@ -1212,11 +1385,18 @@ function updateProximityFading() {
 }
 
 window.addEventListener('keydown', (e) => { 
-    if (e.code === 'Space') isSpacePressed = true; 
-    if (e.code === 'KeyH') toggleUI();
+    if (e.code === 'Space') isSpacePressed = true;
+    if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') isShiftPressed = true;
     if (e.code === 'Escape') clearHighlight();
 });
-window.addEventListener('keyup', (e) => { if (e.code === 'Space') isSpacePressed = false; });
+window.addEventListener('keyup', (e) => { 
+    if (e.code === 'Space') isSpacePressed = false;
+    if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+        isShiftPressed = false;
+        // Clear highlighting when Shift is released
+        clearHighlight();
+    }
+});
 function updateTransform() {
     if (is3D) {
         mapContainer.style.transformOrigin = 'center center';
@@ -1253,8 +1433,71 @@ function nav(direction) {
     }
     updateTransform();
 }
-function zoomIn() { if (is3D) { transZ += 500; updateTransform(); } else { scale = Math.min(scale * 1.2, 5); updateTransform(); } }
-function zoomOut() { if (is3D) { transZ -= 500; updateTransform(); } else { scale = Math.max(scale / 1.2, 0.05); updateTransform(); } }
+function setZoom(value) {
+    if (is3D) {
+        // Map slider value (0.05-5) to transZ (-10000 to 0)
+        transZ = -2000 * (6 - value);
+        transZ = Math.min(0, Math.max(-10000, transZ));
+    } else {
+        scale = value;
+    }
+    updateTransform();
+    updateZoomInfo();
+}
+
+function zoomIn() { 
+    if (is3D) { 
+        transZ += 500; 
+        transZ = Math.min(0, transZ);
+        updateTransform(); 
+        updateZoomSlider();
+    } else { 
+        scale = Math.min(scale * 1.2, 5); 
+        updateTransform(); 
+        updateZoomSlider();
+    } 
+}
+
+function zoomOut() { 
+    if (is3D) { 
+        transZ -= 500; 
+        transZ = Math.max(-10000, transZ);
+        updateTransform(); 
+        updateZoomSlider();
+    } else { 
+        scale = Math.max(scale / 1.2, 0.05); 
+        updateTransform(); 
+        updateZoomSlider();
+    } 
+}
+
+function updateZoomInfo() {
+    const zoomInfo = document.getElementById('zoom-info');
+    if (!zoomInfo) return;
+    
+    if (is3D) {
+        // For 3D, show depth/distance
+        const depth = Math.abs(transZ);
+        zoomInfo.textContent = `Depth: ${depth}`;
+    } else {
+        // For 2D, show zoom percentage
+        const percentage = Math.round(scale * 100);
+        zoomInfo.textContent = `${percentage}%`;
+    }
+}
+
+function updateZoomSlider() {
+    updateZoomInfo();
+    const slider = document.getElementById('zoom-slider');
+    if (!slider) return;
+    if (is3D) {
+        // Map transZ (-10000 to 0) to slider value (0.05-5)
+        const value = 6 - (transZ / -2000);
+        slider.value = Math.max(0.05, Math.min(5, value));
+    } else {
+        slider.value = scale;
+    }
+}
 
 const mapControls = document.getElementById('map-controls');
 if (mapControls) mapControls.addEventListener('mousedown', (e) => e.stopPropagation());
@@ -1276,7 +1519,12 @@ window.addEventListener('mousemove', (e) => {
 window.addEventListener('mouseup', () => isDragging = false);
 main.addEventListener('wheel', (e) => {
     e.preventDefault();
-    if (is3D) { transZ -= e.deltaY * 2; transZ = Math.min(0, Math.max(-10000, transZ)); }
+    if (is3D) { 
+        transZ -= e.deltaY * 2; 
+        transZ = Math.min(0, Math.max(-10000, transZ)); 
+        updateTransform();
+        updateZoomSlider();
+    }
     else {
         const rect = main.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
@@ -1288,11 +1536,11 @@ main.addEventListener('wheel', (e) => {
         pointX = mouseX - targetX * newScale;
         pointY = mouseY - targetY * newScale;
         scale = newScale;
+        updateTransform();
+        updateZoomSlider();
     }
-    updateTransform();
 });
 
-const themeToggle = document.getElementById('theme-toggle');
 const savedTheme = localStorage.getItem('theme');
 const savedAutoMove = localStorage.getItem('autoMove');
 if (savedAutoMove !== null) {
@@ -1301,11 +1549,6 @@ if (savedAutoMove !== null) {
     if (btn) btn.textContent = `AUTODRIFT: ${isAutoMoveEnabled ? 'ON' : 'OFF'}`;
 }
 if (savedTheme === 'dark') document.body.classList.add('dark-mode');
-themeToggle.onclick = () => {
-    document.body.classList.toggle('dark-mode');
-    const isDark = document.body.classList.contains('dark-mode');
-    localStorage.setItem('theme', isDark ? 'dark' : 'light');
-};
 
 // Add Enter key support for search input
 const searchInput = document.getElementById('search-input');
@@ -1318,3 +1561,376 @@ if (searchInput) {
 }
 
 randomizeTargetVelocity(); centerMap();
+
+// --- Library Management ---
+
+async function loadLibraries() {
+    if (!isElectron) return;
+    try {
+        const result = await window.electronAPI.getLibraries();
+        libraries = result.libraries || [];
+        renderLibrariesList();
+    } catch (error) {
+        console.error('Error loading libraries:', error);
+    }
+}
+
+function renderLibrariesList() {
+    const listEl = document.getElementById('libraries-list');
+    if (!listEl) return;
+    
+    if (libraries.length === 0) {
+        listEl.innerHTML = '<div style="opacity: 0.4; font-size: 0.65rem; padding: 8px;">No saved libraries</div>';
+        return;
+    }
+    
+    listEl.innerHTML = '';
+    libraries.forEach((lib, index) => {
+        const item = document.createElement('div');
+        item.className = 'library-item';
+        if (currentLibrary && currentLibrary.id === lib.id) {
+            item.classList.add('active');
+        }
+        
+        // Format last updated time
+        let lastUpdatedText = 'Never';
+        if (lib.lastUpdated) {
+            const date = new Date(lib.lastUpdated);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMs / 3600000);
+            const diffDays = Math.floor(diffMs / 86400000);
+            
+            if (diffMins < 1) lastUpdatedText = 'Just now';
+            else if (diffMins < 60) lastUpdatedText = `${diffMins}m ago`;
+            else if (diffHours < 24) lastUpdatedText = `${diffHours}h ago`;
+            else if (diffDays < 7) lastUpdatedText = `${diffDays}d ago`;
+            else lastUpdatedText = date.toLocaleDateString();
+        }
+        
+        const imageCount = lib.imageCount || 0;
+        const imageCountText = imageCount === 1 ? '1 image' : `${imageCount} images`;
+        
+        item.innerHTML = `
+            <div class="library-info" onclick="switchLibrary('${lib.id}')">
+                <div class="library-name">${lib.name}</div>
+                <div class="library-path">${lib.path}</div>
+                <div class="library-updated">${imageCountText} • Updated: ${lastUpdatedText}</div>
+            </div>
+            <div class="library-actions">
+                <button class="library-btn" onclick="rescanLibrary('${lib.id}')" title="Force Rescan">⟳</button>
+                <button class="library-btn" onclick="renameLibrary('${lib.id}')" title="Rename">✎</button>
+                <button class="library-btn delete-btn" onclick="deleteLibrary('${lib.id}')" title="Delete">✕</button>
+            </div>
+        `;
+        listEl.appendChild(item);
+    });
+}
+
+async function createNewLibrary() {
+    if (!isElectron) return;
+    
+    try {
+        // First, select a folder
+        const result = await window.electronAPI.selectFolder();
+        if (!result.path) {
+            return; // User cancelled
+        }
+        
+        // Then ask for library name
+        pendingLibraryAction = { type: 'add', folderPath: result.path };
+        const modal = document.getElementById('library-modal');
+        const input = document.getElementById('library-name-input');
+        input.value = '';
+        modal.style.display = 'flex';
+        input.focus();
+    } catch (error) {
+        console.error('Error creating library:', error);
+        statusDiv.textContent = 'ERR: FOLDER_SELECT_FAILED';
+    }
+}
+
+async function confirmLibraryName() {
+    const input = document.getElementById('library-name-input');
+    const name = input.value.trim();
+    
+    if (!name) return;
+    
+    const modal = document.getElementById('library-modal');
+    modal.style.display = 'none';
+    
+    if (pendingLibraryAction.type === 'add') {
+        const id = 'lib_' + Date.now();
+        const newLibrary = {
+            id,
+            name,
+            path: pendingLibraryAction.folderPath,
+            created: Date.now()
+        };
+        
+        libraries.push(newLibrary);
+        await window.electronAPI.saveLibraries(libraries);
+        currentLibrary = newLibrary;
+        renderLibrariesList();
+        
+        // Auto-scan the new library
+        statusDiv.textContent = 'SCANNING_NEW_LIBRARY';
+        await scanFolder();
+    } else if (pendingLibraryAction.type === 'rename') {
+        const lib = libraries.find(l => l.id === pendingLibraryAction.libraryId);
+        if (lib) {
+            lib.name = name;
+            await window.electronAPI.saveLibraries(libraries);
+            renderLibrariesList();
+        }
+    }
+    
+    pendingLibraryAction = null;
+}
+
+function cancelLibraryName() {
+    const modal = document.getElementById('library-modal');
+    modal.style.display = 'none';
+    pendingLibraryAction = null;
+}
+
+// Custom confirm dialog
+function customConfirm(title, message) {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('confirm-modal');
+        const titleEl = document.getElementById('confirm-title');
+        const messageEl = document.getElementById('confirm-message');
+        const okBtn = document.getElementById('confirm-ok-btn');
+        const cancelBtn = document.getElementById('confirm-cancel-btn');
+        
+        titleEl.textContent = title;
+        messageEl.textContent = message;
+        modal.style.display = 'flex';
+        
+        const handleOk = () => {
+            modal.style.display = 'none';
+            cleanup();
+            resolve(true);
+        };
+        
+        const handleCancel = () => {
+            modal.style.display = 'none';
+            cleanup();
+            resolve(false);
+        };
+        
+        const cleanup = () => {
+            okBtn.removeEventListener('click', handleOk);
+            cancelBtn.removeEventListener('click', handleCancel);
+        };
+        
+        okBtn.addEventListener('click', handleOk);
+        cancelBtn.addEventListener('click', handleCancel);
+    });
+}
+
+function updateCurrentLibraryInfo() {
+    const infoEl = document.getElementById('current-library-info');
+    const scanBtn = document.getElementById('scan-btn');
+    
+    if (currentLibrary) {
+        infoEl.textContent = `${currentLibrary.name}\n${currentLibrary.path}`;
+        infoEl.style.opacity = '1';
+        if (scanBtn) scanBtn.disabled = false;
+    } else {
+        infoEl.textContent = 'No library selected';
+        infoEl.style.opacity = '0.6';
+        if (scanBtn) scanBtn.disabled = true;
+    }
+}
+
+async function scanCurrentLibrary() {
+    if (!currentLibrary) {
+        statusDiv.textContent = 'ERR: NO_LIBRARY_SELECTED';
+        return;
+    }
+    await scanFolder();
+}
+
+async function switchLibrary(libraryId) {
+    const lib = libraries.find(l => l.id === libraryId);
+    if (!lib) return;
+    
+    currentLibrary = lib;
+    renderLibrariesList();
+    
+    // Clear current view
+    mapContainer.innerHTML = '';
+    images = [];
+    imageNodeElements = [];
+    
+    // Auto-scan the library
+    statusDiv.textContent = 'LOADING_LIBRARY';
+    await scanFolder();
+}
+
+// Generate word cloud from current library's tags
+function updateWordCloud() {
+    const wordcloudSection = document.getElementById('library-wordcloud-section');
+    const wordcloudEl = document.getElementById('library-wordcloud');
+    
+    if (!currentLibrary || images.length === 0) {
+        if (wordcloudSection) wordcloudSection.style.display = 'none';
+        return;
+    }
+    
+    // Count tag frequencies
+    const tagCounts = {};
+    images.forEach(img => {
+        if (img.keywords && Array.isArray(img.keywords)) {
+            img.keywords.forEach(kw => {
+                const tag = kw.className || kw;
+                tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+            });
+        }
+    });
+    
+    // Sort by frequency
+    const sortedTags = Object.entries(tagCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 40); // Top 40 tags
+    
+    if (sortedTags.length === 0) {
+        if (wordcloudSection) wordcloudSection.style.display = 'none';
+        return;
+    }
+    
+    // Show section
+    if (wordcloudSection) wordcloudSection.style.display = 'block';
+    
+    // Clear and rebuild word cloud - all same size
+    if (wordcloudEl) {
+        wordcloudEl.innerHTML = '';
+        
+        sortedTags.forEach(([tag, count]) => {
+            const tagEl = document.createElement('span');
+            tagEl.className = 'wordcloud-tag';
+            tagEl.textContent = tag;
+            tagEl.title = `${count} images - Click to filter, click again to clear`;
+            
+            // Check if this tag is currently active
+            const searchInput = document.getElementById('search-input');
+            if (searchInput && searchInput.value.toLowerCase() === tag.toLowerCase()) {
+                tagEl.classList.add('active');
+            }
+            
+            // Click to filter or clear
+            tagEl.onclick = () => {
+                if (searchInput) {
+                    // If clicking the same tag, clear the filter
+                    if (searchInput.value.toLowerCase() === tag.toLowerCase()) {
+                        searchInput.value = '';
+                        clearAll();
+                    } else {
+                        // Otherwise, apply the filter
+                        searchInput.value = tag;
+                        searchImages();
+                    }
+                }
+            };
+            
+            wordcloudEl.appendChild(tagEl);
+        });
+    }
+}
+
+function renameLibrary(libraryId) {
+    const lib = libraries.find(l => l.id === libraryId);
+    if (!lib) return;
+    
+    pendingLibraryAction = { type: 'rename', libraryId };
+    const modal = document.getElementById('library-modal');
+    const input = document.getElementById('library-name-input');
+    input.value = lib.name;
+    modal.style.display = 'flex';
+    input.focus();
+    input.select();
+}
+
+async function rescanLibrary(libraryId) {
+    const lib = libraries.find(l => l.id === libraryId);
+    if (!lib) return;
+    
+    const confirmed = await customConfirm(
+        'FORCE RESCAN',
+        `Force rescan library "${lib.name}"?\n\nThis will re-analyze all images. This may take several minutes.`
+    );
+    
+    if (!confirmed) return;
+    
+    // Switch to this library if not already active
+    if (!currentLibrary || currentLibrary.id !== libraryId) {
+        await switchLibrary(libraryId);
+    }
+    
+    // Force rescan (skip confirmation since we already confirmed)
+    await rescanFolder(true);
+    
+    // Update last updated timestamp
+    lib.lastUpdated = Date.now();
+    await window.electronAPI.saveLibraries(libraries);
+    renderLibrariesList();
+}
+
+async function deleteLibrary(libraryId) {
+    const lib = libraries.find(l => l.id === libraryId);
+    if (!lib) return;
+    
+    const confirmed = await customConfirm(
+        'DELETE LIBRARY',
+        `Delete library "${lib.name}"?\n\nThis will remove the library and its database.`
+    );
+    
+    if (!confirmed) return;
+    
+    // Delete from list
+    libraries = libraries.filter(l => l.id !== libraryId);
+    await window.electronAPI.saveLibraries(libraries);
+    
+    // Delete database file
+    await window.electronAPI.deleteLibraryDb(libraryId);
+    
+    // Clear if it was the active library
+    if (currentLibrary && currentLibrary.id === libraryId) {
+        currentLibrary = null;
+        document.getElementById('folder-path').value = '';
+        mapContainer.innerHTML = '';
+        images = [];
+        imageNodeElements = [];
+    }
+    
+    renderLibrariesList();
+    statusDiv.textContent = 'LIBRARY_DELETED';
+}
+
+// Update library image count
+async function updateLibraryImageCount() {
+    if (!isElectron || !currentLibrary) return;
+    
+    // Update the current library's image count
+    currentLibrary.imageCount = images.length;
+    
+    // Find and update in the libraries array
+    const lib = libraries.find(l => l.id === currentLibrary.id);
+    if (lib) {
+        lib.imageCount = images.length;
+        lib.lastUpdated = Date.now();
+        
+        // Save to disk
+        await window.electronAPI.saveLibraries(libraries);
+        
+        // Re-render the list to show updated count
+        renderLibrariesList();
+    }
+}
+
+// Load libraries on startup
+if (isElectron) {
+    loadLibraries();
+}

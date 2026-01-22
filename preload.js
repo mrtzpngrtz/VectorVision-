@@ -6,11 +6,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Scan folder for images
     scanFolder: (folderPath) => ipcRenderer.invoke('scan-folder', folderPath),
     
-    // Load database
-    loadDatabase: () => ipcRenderer.invoke('load-database'),
+    // Load database (with optional libraryId)
+    loadDatabase: (libraryId) => ipcRenderer.invoke('load-database', libraryId),
     
-    // Save database
-    saveDatabase: (data) => ipcRenderer.invoke('save-database', data),
+    // Save database (with optional libraryId)
+    saveDatabase: (data, libraryId) => ipcRenderer.invoke('save-database', data, libraryId),
+    
+    // Library management
+    getLibraries: () => ipcRenderer.invoke('get-libraries'),
+    saveLibraries: (libraries) => ipcRenderer.invoke('save-libraries', libraries),
+    deleteLibraryDb: (libraryId) => ipcRenderer.invoke('delete-library-db', libraryId),
     
     // Analyze images (returns promise)
     analyzeImages: (imagePaths) => ipcRenderer.invoke('analyze-images', imagePaths),

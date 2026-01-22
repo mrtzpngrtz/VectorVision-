@@ -30,6 +30,7 @@ This is not a commercial product. It is a personal tool built through vibecoding
 
 *   **Native GPU Acceleration**: Uses ONNX Runtime with DirectML (Windows) or CoreML (macOS) for 5-10x faster image analysis
 *   **AI Semantic Clustering**: Organizes images by visual similarity using CLIP embeddings and Self-Organizing Maps (SOM)
+*   **Library Management**: Multiple libraries with image counts, last updated timestamps, and quick switching
 *   **150+ Smart Categories**: Optimized for artistic/design/fashion photography with tags like:
     *   **Photography**: monochrome, minimalist, abstract, high contrast, dramatic, cinematic, editorial
     *   **Design**: graphic design, typography, branding, layout, composition, visual identity
@@ -40,14 +41,25 @@ This is not a commercial product. It is a personal tool built through vibecoding
     *   **Color**: vibrant, muted, gradients, warm tones, cool tones
     *   **Style**: fashion, elegant, contemporary, avant garde, experimental, surreal
 *   **Multi-Dimensional Sorting**: 2D/3D clustering by AI semantics, color, or lightness
-*   **Real-Time Progress**: Live stats showing speed (5-10 fps), ETA, and current file during analysis
-*   **Smart Search**: Type keywords to filter and re-cluster images semantically
+*   **Informative Progress**: Context-aware loading overlays with detailed descriptions of each processing phase
+*   **Smart Search & Filtering**: 
+    *   Type keywords to filter and re-cluster images semantically
+    *   Common tags word cloud for quick filtering
+    *   Combined Filter & Tags interface for intuitive exploration
+*   **Semantic Similarity View**: 
+    *   **Shift + Hover** to reveal 20 most visually similar images with smooth fade
+    *   Automatically enabled when tag filter is active
+    *   Clean opacity-based highlighting
 *   **Deep Interaction**:
-    *   **Right-Click** to reveal 10 semantic neighbors (ESC/right-click/background to cancel)
     *   **Double-Click** for full-resolution lightbox view
+    *   **Hover** to see image info, tags, and preview
     *   **Depth Control** to expand/compress 3D clusters
-    *   **Auto-Drift** mode for cinematic exploration
-*   **Minimalist Design**: Distraction-free interface optimized for desktop, stable layout during scanning
+    *   **Auto-Drift** mode for cinematic 3D exploration
+*   **Professional Design**: 
+    *   Roboto Mono typography for interface elements
+    *   Helvetica/Arial for readable descriptions
+    *   Compact, space-efficient library management
+    *   Clean visual hierarchy throughout
 *   **100% Private**: All AI analysis happens locally on your machine - no cloud, no API keys required
 
 ## [■] REQUIREMENTS
@@ -88,28 +100,53 @@ This is not a commercial product. It is a personal tool built through vibecoding
 
 ## [▶] USAGE
 
+### Getting Started
+
 1.  **Launch the app** with `npm start`
-2.  **Select your image folder** using the browse button (⊞) or enter path manually
-3.  **Click "Scan Library"** - The app will:
+2.  **Create a library:**
+    -   Click "+ New Library"
+    -   Select your image folder
+    -   Enter a library name
+3.  **The app will automatically:**
     -   Scan for supported images (.jpg, .jpeg, .png, .gif, .webp)
     -   Load cached analysis if available (instant load)
     -   Analyze new images with GPU acceleration at 5-10 images/second
-    -   Display real-time stats: speed, progress, ETA, current filename
-4.  **Explore your images:**
-    -   **View Modes**: Toggle between 2D Flat and 3D Space
-    -   **Sorting**: Grid, AI (semantic clustering), Color, Lightness
-    -   **Search**: Filter by keywords (monochrome, portrait, geometric, etc.)
-    -   **Navigate**: Pan (drag), zoom (scroll), rotate (drag in 3D)
-    -   **Inspect**: Hover for info, double-click for full-resolution view
-    -   **Discover**: Right-click to highlight 10 similar images
-    -   **Cancel**: Press ESC or click background to clear highlights
-    
-5.  **Force Rescan** to re-analyze all images with updated tag categories
+    -   Show informative progress with context-aware descriptions
+    -   Display real-time stats: speed, progress, ETA
+
+### Managing Libraries
+
+-   **Switch Libraries**: Click on any library to load it instantly
+-   **Library Info**: See image count and last updated time for each library
+-   **Rescan**: Force re-analysis with updated AI categories (⟳ button)
+-   **Rename**: Update library names (✎ button)
+-   **Delete**: Remove library and its database (✕ button)
+
+### Exploring Your Images
+
+-   **View Modes**: Toggle between 2D Flat and 3D Space
+-   **Sorting**: Grid, Semantic (AI clustering), Color, Lightness
+-   **Search & Filter**: 
+    -   Type keywords in search box (e.g., "monochrome", "geometric")
+    -   Click common tags from word cloud for instant filtering
+    -   Clear with ✕ button or ESC key
+-   **Navigate**: Pan (drag), zoom (scroll), rotate (drag in 3D)
+-   **Semantic Similarity**:
+    -   **Shift + Hover** over any image to see 20 most similar images
+    -   When filtering by tags, similarity view activates automatically on hover
+    -   Images fade smoothly to highlight relationships
+-   **Inspect**: 
+    -   Hover to see info, tags, and preview in sidebar
+    -   Double-click for full-resolution lightbox view
+-   **3D Controls**:
+    -   Auto-Drift mode for cinematic exploration
+    -   Depth Scale slider to adjust Z-axis compression
 
 **Keyboard Shortcuts:**
-- `H` - Toggle UI
-- `ESC` - Clear highlights/filters
-- `Space` - Pan mode
+-   `Shift + Hover` - Show 20 similar images
+-   `ESC` - Clear highlights/filters
+-   `Space + Drag` - Pan mode
+-   `Enter` - Search (when in search field)
 
 ## [⚡] PERFORMANCE
 

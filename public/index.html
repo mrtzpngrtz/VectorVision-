@@ -4,39 +4,31 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ImageVector - Desktop</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=modern_v4">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css?v=modern_v6_improved">
 </head>
 <body>
     <div id="app">
         <div id="sidebar">
-            <div class="header">
-                <h2>ImageVector</h2>
-            </div>
-
-            <!-- Library -->
-            <div class="control-group">
-                <label>Library</label>
-                <div class="input-group">
-                    <input type="text" id="folder-path" placeholder="Select folder..." readonly onclick="selectFolderDialog()">
-                    <button onclick="selectFolderDialog()" class="icon-btn" title="Browse">⊞</button>
+            <div class="sidebar-scrollable">
+                <div class="header">
+                    <h2>ImageVector</h2>
+                    <button onclick="toggleUI()" class="icon-btn hide-ui-btn" title="Hide Sidebar">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="10 2, 4 8, 10 14"/>
+                        </svg>
+                    </button>
                 </div>
-                <button onclick="scanFolder()" class="primary-btn">Scan</button>
-            </div>
 
-            <!-- Status - Compact, always visible -->
-            <div class="control-group">
-                <div id="status" class="status-text">Ready</div>
-                <div id="status-progress" style="display: none;">
-                    <div class="progress-bar-container">
-                        <div class="progress-bar" id="progress-bar"></div>
-                        <div class="progress-text" id="progress-percentage">0%</div>
-                    </div>
-                    <div class="stats-compact">
-                        <span id="stat-processed">0</span> / <span id="stat-total">0</span> 
-                        <span style="margin-left: 12px; opacity: 0.5;"><span id="stat-speed">0/s</span></span>
-                        <span style="margin-left: 12px; opacity: 0.5;">ETA: <span id="stat-eta">--</span></span>
-                    </div>
+            <!-- Libraries -->
+            <div class="control-group collapsible">
+                <label class="collapsible-header expanded" onclick="toggleSection('libraries-section')">
+                    <span>Libraries</span>
+                    <span class="chevron">▼</span>
+                </label>
+                <div id="libraries-section" class="collapsible-content">
+                    <div id="libraries-list"></div>
+                    <button onclick="createNewLibrary()" class="primary-btn compact" style="margin-top: 8px;">+ New Library</button>
                 </div>
             </div>
 
@@ -49,19 +41,30 @@
                 </div>
                 <div class="radio-group" style="margin-top: 8px;">
                     <button onclick="setSorting('grid')" id="sort-grid" class="radio-btn">Grid</button>
-                    <button onclick="setSorting('semantic')" id="sort-semantic" class="radio-btn active">AI</button>
+                    <button onclick="setSorting('semantic')" id="sort-semantic" class="radio-btn active">Semantic</button>
                     <button onclick="setSorting('color')" id="sort-color" class="radio-btn">Color</button>
                     <button onclick="setSorting('lightness')" id="sort-lightness" class="radio-btn">Light</button>
                 </div>
             </div>
 
-            <!-- Filter -->
-            <div class="control-group">
-                <label>Filter</label>
-                <div class="input-group">
-                    <input type="text" id="search-input" placeholder="Search tags...">
-                    <button onclick="searchImages()" class="icon-btn" title="Search">→</button>
-                    <button onclick="clearAll()" class="icon-btn" title="Clear">✕</button>
+            <!-- Filter & Tags - Combined Section -->
+            <div class="control-group collapsible">
+                <label class="collapsible-header expanded" onclick="toggleSection('filter-section')">
+                    <span>Filter & Tags</span>
+                    <span class="chevron">▼</span>
+                </label>
+                <div id="filter-section" class="collapsible-content">
+                    <div class="input-group">
+                        <input type="text" id="search-input" placeholder="Search tags...">
+                        <button onclick="searchImages()" class="icon-btn" title="Search">→</button>
+                        <button onclick="clearAll()" class="icon-btn" title="Clear">✕</button>
+                    </div>
+                    
+                    <!-- Common Tags for Active Library -->
+                    <div id="library-wordcloud-section" style="display: none; margin-top: 16px;">
+                        <label style="margin-bottom: 8px;">Common Tags</label>
+                        <div id="library-wordcloud" class="library-wordcloud"></div>
+                    </div>
                 </div>
             </div>
 
@@ -75,39 +78,36 @@
                 </div>
             </div>
 
-            <!-- Advanced - Collapsible -->
-            <div class="control-group collapsible">
-                <label class="collapsible-header" onclick="toggleSection('advanced-section')">
-                    <span>Advanced</span>
-                    <span class="chevron">▼</span>
-                </label>
-                <div id="advanced-section" class="collapsible-content" style="display: none;">
-                    <button onclick="rescanFolder()" class="secondary-btn compact">Force Rescan</button>
-                    
-                    <div id="view-presets" style="display:none; margin-top: 12px;">
-                        <button id="auto-move-toggle" onclick="toggleAutoMove()" class="secondary-btn compact">Auto-Drift: ON</button>
-                        
-                        <div id="drift-settings" style="margin-top: 12px;">
-                            <div class="control-subgroup">
-                                <label>Drift Speed</label>
-                                <input type="range" id="drift-speed-slider" min="0.1" max="2.0" step="0.1" value="0.5" oninput="updateDriftSpeed(this.value)">
-                            </div>
-                            <div class="control-subgroup">
-                                <label>Change Interval</label>
-                                <input type="range" id="drift-interval-slider" min="5" max="60" step="5" value="20" oninput="updateDriftInterval(this.value)">
-                            </div>
-                        </div>
+            <!-- 3D Controls - Auto-shown based on view mode -->
+            <div id="view-presets" class="control-group" style="display:none;">
+                <label>3D Auto-Drift</label>
+                <button id="auto-move-toggle" onclick="toggleAutoMove()" class="secondary-btn compact">Auto-Drift: ON</button>
+                
+                <div id="drift-settings" style="margin-top: 12px;">
+                    <div class="control-subgroup">
+                        <label>Drift Speed</label>
+                        <input type="range" id="drift-speed-slider" min="0.1" max="2.0" step="0.1" value="0.5" oninput="updateDriftSpeed(this.value)">
                     </div>
-
-                    <div id="z-scale-control" style="display:none; margin-top: 12px;">
-                        <div class="control-subgroup">
-                            <label>Depth Scale</label>
-                            <input type="range" id="z-slider" min="0" max="3" step="0.1" value="1" oninput="updateZScale(this.value)">
-                        </div>
+                    <div class="control-subgroup">
+                        <label>Change Interval</label>
+                        <input type="range" id="drift-interval-slider" min="5" max="60" step="5" value="20" oninput="updateDriftInterval(this.value)">
                     </div>
                 </div>
             </div>
 
+            <div id="z-scale-control" class="control-group" style="display:none;">
+                <label>Depth Scale</label>
+                <input type="range" id="z-slider" min="0" max="3" step="0.1" value="1" oninput="updateZScale(this.value)">
+            </div>
+            </div>
+
+            <!-- Image Preview - Fixed at bottom -->
+            <div class="sidebar-fixed-bottom">
+                <div id="image-preview" class="image-preview">
+                    <img id="preview-img" style="display: none; width: 100%; height: 100%; object-fit: contain;">
+                    <span id="preview-placeholder" style="opacity: 0.3; font-size: 0.6rem; font-family: monospace;">No image hovered</span>
+                </div>
+            </div>
         </div>
         
         <div id="main">
@@ -115,33 +115,36 @@
             
             <div id="fps-counter">FPS: --</div>
 
-            <div class="ui-toggle-btn" onclick="toggleUI()" title="Toggle UI (H)">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="2" y1="2" x2="14" y2="14"/>
-                    <line x1="14" y1="2" x2="2" y2="14"/>
-                </svg>
-            </div>
+            <!-- Zoom Info Display -->
+            <div id="zoom-info">100%</div>
 
-            <!-- Map Controls -->
-            <div id="map-controls">
-                <div class="control-grid">
-                    <button class="map-btn spacer"></button>
-                    <button onclick="nav('up')" class="map-btn" title="Up">↑</button>
-                    <button class="map-btn spacer"></button>
-                    
-                    <button onclick="nav('left')" class="map-btn" title="Left">←</button>
-                    <button onclick="centerMap()" class="map-btn" title="Reset View">⟲</button>
-                    <button onclick="nav('right')" class="map-btn" title="Right">→</button>
-                    
-                    <button class="map-btn spacer"></button>
-                    <button onclick="nav('down')" class="map-btn" title="Down">↓</button>
-                    <button class="map-btn spacer"></button>
-                </div>
-                <div class="control-grid zoom-grid">
-                    <button onclick="zoomIn()" class="map-btn" title="Zoom In">+</button>
-                    <button onclick="zoomOut()" class="map-btn" title="Zoom Out">-</button>
+            <!-- Loading Overlay (Canvas Only) -->
+            <div id="loading-overlay" style="display: none;">
+                <div class="loading-content">
+                    <div id="status" class="status-text">Ready</div>
+                    <div id="status-description" class="status-description">Preparing to process images...</div>
+                    <div id="status-progress">
+                        <div class="progress-bar-container">
+                            <div class="progress-bar" id="progress-bar"></div>
+                            <div class="progress-text" id="progress-percentage">0%</div>
+                        </div>
+                        <div class="stats-compact">
+                            <span id="stat-processed">0</span> / <span id="stat-total">0</span> 
+                            <span style="margin-left: 12px; opacity: 0.5;"><span id="stat-speed">0/s</span></span>
+                            <span style="margin-left: 12px; opacity: 0.5;">ETA: <span id="stat-eta">--</span></span>
+                        </div>
+                    </div>
+                    <!-- Detected Tags Display -->
+                    <div id="detected-tags" class="detected-tags"></div>
                 </div>
             </div>
+        </div>
+
+        <!-- Toggle button OUTSIDE #main to avoid perspective/overflow clipping -->
+        <div class="ui-toggle-btn" onclick="toggleUI()" title="Show Sidebar">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 2, 12 8, 6 14"/>
+            </svg>
         </div>
     </div>
 
@@ -149,6 +152,30 @@
     <div id="lightbox">
         <img id="lightbox-img">
         <div class="lightbox-close" onclick="document.getElementById('lightbox').style.display='none'">&times;</div>
+    </div>
+
+    <!-- Library Name Modal -->
+    <div id="library-modal" style="display: none;">
+        <div class="modal-content">
+            <h3>Library Name</h3>
+            <input type="text" id="library-name-input" placeholder="Enter library name...">
+            <div class="modal-buttons">
+                <button onclick="confirmLibraryName()" class="primary-btn">Save</button>
+                <button onclick="cancelLibraryName()" class="secondary-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Confirm Dialog -->
+    <div id="confirm-modal" style="display: none;">
+        <div class="modal-content confirm-modal">
+            <h3 id="confirm-title">Confirm Action</h3>
+            <p id="confirm-message"></p>
+            <div class="modal-buttons">
+                <button id="confirm-ok-btn" class="primary-btn">OK</button>
+                <button id="confirm-cancel-btn" class="secondary-btn">Cancel</button>
+            </div>
+        </div>
     </div>
 
     <script src="js/app.js"></script>
