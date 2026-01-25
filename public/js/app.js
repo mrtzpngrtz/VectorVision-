@@ -1052,10 +1052,45 @@ function displayImages(imageList) {
             e.stopPropagation(); 
             highlightNeighbors(index); 
         };
-        el.ondblclick = async (e) => { 
-            e.stopPropagation(); 
+        // Track mouse movement for click vs drag detection
+        let imageMouseDown = false;
+        let imageStartX = 0;
+        let imageStartY = 0;
+        let imageMouseButton = 0;
+        
+        el.onmousedown = (e) => {
+            imageMouseDown = true;
+            imageStartX = e.clientX;
+            imageStartY = e.clientY;
+            imageMouseButton = e.button;
+        };
+        
+        el.onmouseup = (e) => {
+            if (!imageMouseDown) return;
+            
+            // Calculate distance moved
+            const distMoved = Math.sqrt(
+                Math.pow(e.clientX - imageStartX, 2) + 
+                Math.pow(e.clientY - imageStartY, 2)
+            );
+            
+            // Only treat as click if moved less than 5 pixels AND it's left-click (button 0)
+            if (distMoved < 5 && imageMouseButton === 0) {
+                e.stopPropagation();
+                // Zoom into the grid, focusing on this image
+                // Pass image size to center properly
+                zoomToImage(x, y, z, sizeW, sizeH);
+                // Reset global dragging state
+                isDragging = false;
+            }
+            
+            imageMouseDown = false;
+        };
+        
+        // Double-click for lightbox
+        el.ondblclick = (e) => {
+            e.stopPropagation();
             if (isElectron) {
-                // Load full resolution for lightbox
                 const fullPath = `file:///${img.path.replace(/\\/g, '/')}`;
                 showLightbox(fullPath);
             } else {
@@ -1255,8 +1290,44 @@ async function searchImages() {
             }
         };
         
-        el.ondblclick = (e) => { 
-            e.stopPropagation(); 
+        // Track mouse movement for click vs drag detection
+        let searchImageMouseDown = false;
+        let searchImageStartX = 0;
+        let searchImageStartY = 0;
+        let searchImageMouseButton = 0;
+        
+        el.onmousedown = (e) => {
+            searchImageMouseDown = true;
+            searchImageStartX = e.clientX;
+            searchImageStartY = e.clientY;
+            searchImageMouseButton = e.button;
+        };
+        
+        el.onmouseup = (e) => {
+            if (!searchImageMouseDown) return;
+            
+            // Calculate distance moved
+            const distMoved = Math.sqrt(
+                Math.pow(e.clientX - searchImageStartX, 2) + 
+                Math.pow(e.clientY - searchImageStartY, 2)
+            );
+            
+            // Only treat as click if moved less than 5 pixels AND it's left-click (button 0)
+            if (distMoved < 5 && searchImageMouseButton === 0) {
+                e.stopPropagation();
+                // Zoom into the grid, focusing on this image
+                // Pass image size to center properly
+                zoomToImage(x, y, 0, cellW, cellH);
+                // Reset global dragging state
+                isDragging = false;
+            }
+            
+            searchImageMouseDown = false;
+        };
+        
+        // Double-click for lightbox
+        el.ondblclick = (e) => {
+            e.stopPropagation();
             if (isElectron) {
                 const fullPath = `file:///${img.path.replace(/\\/g, '/')}`;
                 showLightbox(fullPath);
@@ -1417,6 +1488,63 @@ function centerMap() {
         updateTransform();
     }
 }
+function zoomToImage(imgX, imgY, imgZ, imgWidth, imgHeight) {
+    // Zoom into the grid, centering on the clicked image
+    if (is3D) {
+        // For 3D, move to center the image and zoom in closer
+        const rect = main.getBoundingClientRect();
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+        
+        // Calculate the center of the image (not top-left corner)
+        const imageCenterX = imgX + (imgWidth || 0) / 2;
+        const imageCenterY = imgY + (imgHeight || 0) / 2;
+        
+        // Move the camera so the image CENTER appears at viewport center
+        transX = -imageCenterX + centerX;
+        transY = -imageCenterY + centerY;
+        transZ = -500;  // Zoom in closer
+        
+        updateTransform();
+        updateZoomSlider();
+    } else {
+        // For 2D, pan and zoom to the clicked image
+        const rect = main.getBoundingClientRect();
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+        
+        // Adaptive zoom level based on image size
+        // Smaller cells (normal view) get more zoom, larger cells (filtered view) get less zoom
+        const avgCellSize = ((imgWidth || 100) + (imgHeight || 100)) / 2;
+        let targetScale;
+        if (avgCellSize > 200) {
+            // Very large cells (few filtered results) - barely zoom, just center
+            targetScale = 0.4;
+        } else if (avgCellSize > 120) {
+            // Large cells (filtered view) - zoom very little
+            targetScale = 0.7;
+        } else if (avgCellSize > 70) {
+            // Medium cells - moderate zoom
+            targetScale = 1.2;
+        } else {
+            // Small cells (normal dense view) - zoom more
+            targetScale = 1.8;
+        }
+        
+        // Calculate the center of the image (not top-left corner)
+        const imageCenterX = imgX + (imgWidth || 0) / 2;
+        const imageCenterY = imgY + (imgHeight || 0) / 2;
+        
+        // Position so the image CENTER is at viewport center
+        pointX = centerX - (imageCenterX * targetScale);
+        pointY = centerY - (imageCenterY * targetScale);
+        scale = targetScale;
+        
+        updateTransform();
+        updateZoomSlider();
+    }
+}
+
 function updateZScale(val) { mapContainer.style.setProperty('--z-scale', val); }
 function nav(direction) {
     const step = 200; 

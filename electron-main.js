@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const analyzer = require('./server/analyzer');
@@ -32,6 +32,9 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+    // Remove the default menu bar for a cleaner look
+    Menu.setApplicationMenu(null);
+    
     createWindow();
 
     app.on('activate', () => {
