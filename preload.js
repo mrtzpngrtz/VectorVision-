@@ -41,7 +41,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     
     // File operations
     saveImage: (sourcePath) => ipcRenderer.invoke('save-image', sourcePath),
-    openInFolder: (filePath) => ipcRenderer.invoke('open-in-folder', filePath)
+    openInFolder: (filePath) => ipcRenderer.invoke('open-in-folder', filePath),
+    openExternal: (url) => ipcRenderer.invoke('open-external', url)
 });
 
 console.log('Preload script loaded - Electron API bridge ready');

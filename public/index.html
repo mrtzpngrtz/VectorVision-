@@ -68,7 +68,7 @@
             </div>
 
             <div class="sidebar-footer">
-                <!-- Footer content can go here if needed -->
+                <button onclick="openHelp()" class="secondary-btn" style="width: 100%; justify-content: center; display: flex;">Help & About</button>
             </div>
         </div>
 
@@ -161,6 +161,8 @@
     </div>
 
     <!-- Lightbox -->
+    <button id="bottom-ui-toggle" onclick="toggleUI()">HIDE UI</button>
+
     <div id="lightbox">
         <img id="lightbox-img">
         <div class="lightbox-controls">
@@ -189,6 +191,22 @@
         </div>
     </div>
 
+    <!-- Library Selection Modal (Startup) -->
+    <div id="library-selection-modal" style="display: none;">
+        <div class="modal-content selection-modal-content">
+            <h3>Select Library</h3>
+            <div class="selection-scroll-area">
+                <div id="selection-libraries-list" class="selection-list">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+            <div class="modal-buttons vertical-buttons">
+                <button id="load-library-btn" onclick="loadSelectedLibrary()" class="primary-btn" disabled>LOAD LIBRARY</button>
+                <button onclick="createNewLibrary(true)" class="secondary-btn">Add / Create Library</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Custom Confirm Dialog -->
     <div id="confirm-modal" style="display: none;">
         <div class="modal-content confirm-modal">
@@ -206,13 +224,54 @@
         <div class="modal-content start-popup-content">
             <h3>Welcome to VectorVision</h3>
             <div class="start-popup-body">
-                <p>VectorVision organizes your images using AI to find visual similarities.</p>
-                <ul>
-                    <li><strong>Connect</strong> your local image folders as libraries</li>
-                    <li><strong>Explore</strong> your collection in 2D or 3D space</li>
-                    <li><strong>Filter</strong> by AI-generated tags and visual properties</li>
-                </ul>
-                <p class="small-text">All analysis happens locally on your GPU. No cloud.</p>
+                <p class="intro-text">VectorVision organizes your images using AI to find visual similarities.</p>
+                
+                <div class="popup-columns">
+                    <div class="popup-column">
+                        <h4>Features</h4>
+                        <ul class="feature-list">
+                            <li><strong>Connect</strong> local folders as libraries</li>
+                            <li><strong>Explore</strong> in 2D or 3D space</li>
+                            <li><strong>Filter</strong> by AI tags & visual properties</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="popup-column">
+                        <h4>Controls</h4>
+                        <div class="controls-grid">
+                            <div class="control-row">
+                                <span class="control-key">Left Drag</span>
+                                <span class="control-desc">Pan View</span>
+                            </div>
+                            <div class="control-row">
+                                <span class="control-key">Scroll</span>
+                                <span class="control-desc">Zoom</span>
+                            </div>
+                            <div class="control-row">
+                                <span class="control-key">Click</span>
+                                <span class="control-desc">Focus Image</span>
+                            </div>
+                            <div class="control-row">
+                                <span class="control-key">Dbl Click</span>
+                                <span class="control-desc">Lightbox</span>
+                            </div>
+                            <div class="control-row">
+                                <span class="control-key">Space</span>
+                                <span class="control-desc">Quick View</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="popup-meta">
+                    <p class="small-text">All analysis happens locally on your GPU. No cloud.</p>
+                    <p class="meta-info">
+                        Version Alpha 0.9 • Created by Moritz Pongratz<br>
+                        <a href="#" onclick="window.electronAPI.openExternal('https://aop.studio')">aop.studio</a> • 
+                        <a href="#" onclick="window.electronAPI.openExternal('https://github.com/mrtzpngrtz/VectorVision')">GitHub</a>
+                    </p>
+                    <p class="disclaimer">Experimental Software • GPU Heavy</p>
+                </div>
             </div>
             <div class="start-popup-footer">
                 <label class="checkbox-container">

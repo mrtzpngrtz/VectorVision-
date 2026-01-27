@@ -274,5 +274,15 @@ ipcMain.handle('open-in-folder', async (event, filePath) => {
     }
 });
 
+// Open external URL
+ipcMain.handle('open-external', async (event, url) => {
+    try {
+        await shell.openExternal(url);
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
 console.log('ImageVector Electron App Started');
 console.log('Hardware acceleration enabled via ONNX Runtime');

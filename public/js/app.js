@@ -59,6 +59,7 @@ function updateStatus(code, description = null) {
 let libraries = [];
 let currentLibrary = null;
 let pendingLibraryAction = null;
+let selectedLibraryId = null;
 let currentAspectRatio = 1;
 
 function setAspectRatio(ratio) {
@@ -112,6 +113,11 @@ function toggleSidebarSection(id) {
 
 function toggleUI() {
     document.body.classList.toggle('ui-hidden');
+    const btn = document.getElementById('bottom-ui-toggle');
+    if (btn) {
+        const isHidden = document.body.classList.contains('ui-hidden');
+        btn.textContent = isHidden ? 'SHOW UI' : 'HIDE UI';
+    }
 }
 
 function toggleSection(sectionId) {
@@ -1922,71 +1928,139 @@ async function loadLibraries() {
     }
 }
 
-function renderLibrariesList() {
-    const listEl = document.getElementById('libraries-list');
-    if (!listEl) return;
+async function loadSelectedLibrary() {
+    if (!selectedLibraryId) return;
     
-    if (libraries.length === 0) {
-        listEl.innerHTML = '<div style="opacity: 0.4; font-size: 0.65rem; padding: 8px;">No saved libraries</div>';
-        return;
-    }
+    // Find the library
+    const lib = libraries.find(l => l.id === selectedLibraryId);
+    if (!lib) return;
     
-    listEl.innerHTML = '';
-    libraries.forEach((lib, index) => {
-        const item = document.createElement('div');
-        item.className = 'library-item';
-        if (currentLibrary && currentLibrary.id === lib.id) {
-            item.classList.add('active');
-        }
-        
-        // Format last updated time
-        let lastUpdatedText = 'Never';
-        if (lib.lastUpdated) {
-            const date = new Date(lib.lastUpdated);
-            const now = new Date();
-            const diffMs = now - date;
-            const diffMins = Math.floor(diffMs / 60000);
-            const diffHours = Math.floor(diffMs / 3600000);
-            const diffDays = Math.floor(diffMs / 86400000);
-            
-            if (diffMins < 1) lastUpdatedText = 'Just now';
-            else if (diffMins < 60) lastUpdatedText = `${diffMins}m ago`;
-            else if (diffHours < 24) lastUpdatedText = `${diffHours}h ago`;
-            else if (diffDays < 7) lastUpdatedText = `${diffDays}d ago`;
-            else lastUpdatedText = date.toLocaleDateString();
-        }
-        
-        const imageCount = lib.imageCount || 0;
-        const imageCountText = imageCount === 1 ? '1 image' : `${imageCount} images`;
-        
-        item.innerHTML = `
-            <div class="library-info" onclick="switchLibrary('${lib.id}')">
-                <div class="library-name">${lib.name}</div>
-                <div class="library-path">${lib.path}</div>
-                <div class="library-updated">${imageCountText} • Updated: ${lastUpdatedText}</div>
-            </div>
-            <div class="library-actions">
-                <button class="library-btn" onclick="rescanLibrary('${lib.id}')" title="Force Rescan">⟳</button>
-                <button class="library-btn" onclick="renameLibrary('${lib.id}')" title="Rename">✎</button>
-                <button class="library-btn delete-btn" onclick="deleteLibrary('${lib.id}')" title="Delete">✕</button>
-            </div>
-        `;
-        listEl.appendChild(item);
-    });
+    // Hide modal first to feel responsive
+    document.getElementById('library-selection-modal').style.display = 'none';
+    
+    // Switch to it
+    await switchLibrary(selectedLibraryId);
 }
 
-async function createNewLibrary() {
+function renderLibrariesList() {
+    const listEl = document.getElementById('libraries-list');
+    const selectionListEl = document.getElementById('selection-libraries-list');
+    
+    // Render sidebar list
+    if (listEl) {
+        if (libraries.length === 0) {
+            listEl.innerHTML = '<div style="opacity: 0.4; font-size: 0.65rem; padding: 8px;">No saved libraries</div>';
+        } else {
+            listEl.innerHTML = '';
+            libraries.forEach((lib) => {
+                const item = document.createElement('div');
+                item.className = 'library-item';
+                if (currentLibrary && currentLibrary.id === lib.id) {
+                    item.classList.add('active');
+                }
+                
+                let lastUpdatedText = 'Never';
+                if (lib.lastUpdated) {
+                    const date = new Date(lib.lastUpdated);
+                    const now = new Date();
+                    const diffMs = now - date;
+                    const diffMins = Math.floor(diffMs / 60000);
+                    const diffHours = Math.floor(diffMs / 3600000);
+                    const diffDays = Math.floor(diffMs / 86400000);
+                    
+                    if (diffMins < 1) lastUpdatedText = 'Just now';
+                    else if (diffMins < 60) lastUpdatedText = `${diffMins}m ago`;
+                    else if (diffHours < 24) lastUpdatedText = `${diffHours}h ago`;
+                    else if (diffDays < 7) lastUpdatedText = `${diffDays}d ago`;
+                    else lastUpdatedText = date.toLocaleDateString();
+                }
+                
+                const imageCount = lib.imageCount || 0;
+                const imageCountText = imageCount === 1 ? '1 image' : `${imageCount} images`;
+                
+                item.innerHTML = `
+                    <div class="library-info" onclick="switchLibrary('${lib.id}')">
+                        <div class="library-name">${lib.name}</div>
+                        <div class="library-path">${lib.path}</div>
+                        <div class="library-updated">${imageCountText} • Updated: ${lastUpdatedText}</div>
+                    </div>
+                    <div class="library-actions">
+                        <button class="library-btn" onclick="rescanLibrary('${lib.id}')" title="Force Rescan">⟳</button>
+                        <button class="library-btn" onclick="renameLibrary('${lib.id}')" title="Rename">✎</button>
+                        <button class="library-btn delete-btn" onclick="deleteLibrary('${lib.id}')" title="Delete">✕</button>
+                    </div>
+                `;
+                listEl.appendChild(item);
+            });
+        }
+    }
+
+    // Render selection modal list
+    if (selectionListEl) {
+        if (libraries.length === 0) {
+            selectionListEl.innerHTML = '<div style="padding: 30px; text-align: center; opacity: 0.5; font-size: 0.8rem;">No saved libraries found.<br>Create one to get started.</div>';
+            const loadBtn = document.getElementById('load-library-btn');
+            if (loadBtn) loadBtn.disabled = true;
+        } else {
+            selectionListEl.innerHTML = '';
+            
+            // Check if selectedLibraryId is valid
+            if (selectedLibraryId && !libraries.find(l => l.id === selectedLibraryId)) {
+                selectedLibraryId = null;
+            }
+            
+            // Update load button state
+            const loadBtn = document.getElementById('load-library-btn');
+            if (loadBtn) loadBtn.disabled = !selectedLibraryId;
+
+            libraries.forEach(lib => {
+                const item = document.createElement('div');
+                item.className = 'selection-item';
+                if (lib.id === selectedLibraryId) {
+                    item.classList.add('active');
+                }
+                
+                const imageCount = lib.imageCount || 0;
+                let lastUpdatedText = 'Never';
+                if (lib.lastUpdated) {
+                    const date = new Date(lib.lastUpdated);
+                    lastUpdatedText = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+                }
+                
+                item.innerHTML = `
+                    <div class="selection-item-info">
+                        <span class="selection-item-name">${lib.name}</span>
+                        <span class="selection-item-path">${lib.path}</span>
+                        <span class="selection-item-meta">${imageCount} images • Last opened: ${lastUpdatedText}</span>
+                    </div>
+                `;
+                
+                item.onclick = () => {
+                    selectedLibraryId = lib.id;
+                    renderLibrariesList(); // Re-render to update selection UI
+                };
+                
+                item.ondblclick = () => {
+                    selectedLibraryId = lib.id;
+                    loadSelectedLibrary();
+                };
+                
+                selectionListEl.appendChild(item);
+            });
+        }
+    }
+}
+
+async function createNewLibrary(isFromSelectionModal = false) {
     if (!isElectron) return;
     
     try {
-        // First, select a folder
         const result = await window.electronAPI.selectFolder();
         if (!result.path) {
-            return; // User cancelled
+            return;
         }
         
-        // Then ask for library name
-        pendingLibraryAction = { type: 'add', folderPath: result.path };
+        pendingLibraryAction = { type: 'add', folderPath: result.path, fromSelection: isFromSelectionModal };
         const modal = document.getElementById('library-modal');
         const input = document.getElementById('library-name-input');
         input.value = '';
@@ -2020,6 +2094,10 @@ async function confirmLibraryName() {
         await window.electronAPI.saveLibraries(libraries);
         currentLibrary = newLibrary;
         renderLibrariesList();
+        
+        if (pendingLibraryAction.fromSelection) {
+            document.getElementById('library-selection-modal').style.display = 'none';
+        }
         
         // Auto-scan the new library
         statusDiv.textContent = 'SCANNING_NEW_LIBRARY';
@@ -2284,7 +2362,14 @@ function initStartPopup() {
     
     if (!dontShow) {
         popup.style.display = 'flex';
+    } else {
+        showLibrarySelection();
     }
+}
+
+function openHelp() {
+    const popup = document.getElementById('start-popup');
+    popup.style.display = 'flex';
 }
 
 function closeStartPopup() {
@@ -2296,6 +2381,13 @@ function closeStartPopup() {
     }
     
     popup.style.display = 'none';
+    showLibrarySelection();
+}
+
+function showLibrarySelection() {
+    const modal = document.getElementById('library-selection-modal');
+    modal.style.display = 'flex';
+    renderLibrariesList(); // Update list in case it wasn't rendered yet
 }
 
 // Load libraries on startup
