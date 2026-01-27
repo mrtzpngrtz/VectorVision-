@@ -34,7 +34,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Remove analysis progress listener
     removeAnalysisProgressListener: () => {
         ipcRenderer.removeAllListeners('analysis-progress');
-    }
+    },
+
+    // Clipboard operations
+    copyToClipboard: (imagePath) => ipcRenderer.invoke('copy-to-clipboard', imagePath),
+    
+    // File operations
+    saveImage: (sourcePath) => ipcRenderer.invoke('save-image', sourcePath),
+    openInFolder: (filePath) => ipcRenderer.invoke('open-in-folder', filePath)
 });
 
 console.log('Preload script loaded - Electron API bridge ready');

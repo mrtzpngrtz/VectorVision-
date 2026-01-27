@@ -95,12 +95,16 @@
                     <div id="status-progress">
                         <div class="progress-bar-container">
                             <div class="progress-bar" id="progress-bar"></div>
-                            <div class="progress-text" id="progress-percentage">0%</div>
                         </div>
-                        <div class="stats-compact">
-                            <span id="stat-processed">0</span> / <span id="stat-total">0</span> 
-                            <span style="margin-left: 12px; opacity: 0.5;"><span id="stat-speed">0/s</span></span>
-                            <span style="margin-left: 12px; opacity: 0.5;">ETA: <span id="stat-eta">--</span></span>
+                        <div class="progress-details">
+                            <div class="progress-text" id="progress-percentage">0%</div>
+                            <div class="stats-compact">
+                                <span id="stat-processed">0</span> / <span id="stat-total">0</span> 
+                                <span class="stat-separator">|</span>
+                                <span id="stat-speed">0/s</span>
+                                <span class="stat-separator">|</span>
+                                <span>ETA: <span id="stat-eta">--</span></span>
+                            </div>
                         </div>
                     </div>
                     <div id="detected-tags" class="detected-tags"></div>
@@ -128,7 +132,7 @@
                 <!-- INFO -->
                 <div class="sidebar-section">
                     <div class="section-label">INFO</div>
-                    <div id="semantic-info" class="info-content" style="white-space: pre-wrap;">Hover over an image to see details...</div>
+                    <div id="semantic-info" class="info-content">Hover over an image to see details...</div>
                 </div>
 
                 <!-- FILTER -->
@@ -159,6 +163,17 @@
     <!-- Lightbox -->
     <div id="lightbox">
         <img id="lightbox-img">
+        <div class="lightbox-controls">
+            <button class="lightbox-btn" onclick="copyLightboxImage()" title="Copy to Clipboard">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+            </button>
+            <button class="lightbox-btn" onclick="saveLightboxImage()" title="Save Image">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+            </button>
+            <button class="lightbox-btn" onclick="openLightboxFolder()" title="Open in Folder">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+            </button>
+        </div>
         <div class="lightbox-close" onclick="document.getElementById('lightbox').style.display='none'">&times;</div>
     </div>
 

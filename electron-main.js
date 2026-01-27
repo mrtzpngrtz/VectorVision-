@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, clipboard, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const analyzer = require('./server/analyzer');
@@ -170,7 +170,8 @@ ipcMain.handle('analyze-images', async (event, imagePaths) => {
                         features: result.features,
                         keywords: result.keywords,
                         color: result.color,
-                        colorVector: result.colorVector
+                        colorVector: result.colorVector,
+                        palette: result.palette
                     });
                     
                     // Send progress update WITH keywords
@@ -231,6 +232,46 @@ ipcMain.handle('select-folder', async () => {
     }
     
     return { path: null };
+});
+
+// Copy image to clipboard
+ipcMain.handle('copy-to-clipboard', async (event, imagePath) => {
+    try {
+        const nativeImage = require('electron').nativeImage;
+        const image = nativeImage.createFromPath(imagePath);
+        clipboard.writeImage(image);
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
+// Save image to location
+ipcMain.handle('save-image', async (event, sourcePath) => {
+    try {
+        const ext = path.extname(sourcePath);
+        const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+            defaultPath: 'saved_image' + ext,
+            filters: [{ name: 'Image', extensions: [ext.replace('.', '')] }]
+        });
+        
+        if (canceled || !filePath) return { canceled: true };
+        
+        fs.copyFileSync(sourcePath, filePath);
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
+// Open file in folder
+ipcMain.handle('open-in-folder', async (event, filePath) => {
+    try {
+        shell.showItemInFolder(filePath);
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
 });
 
 console.log('ImageVector Electron App Started');

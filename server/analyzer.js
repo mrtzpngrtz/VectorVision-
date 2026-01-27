@@ -462,19 +462,130 @@ async function classifyImage(imagePath) {
     }
 }
 
+// Simple K-means implementation for dominant colors
+function getDominantColors(pixelData, pixelCount, k = 5, maxIterations = 10) {
+    if (!pixelData || pixelCount <= 0 || pixelData.length < pixelCount * 3) return [];
+
+    // Initialize centroids randomly
+    const centroids = [];
+    for (let i = 0; i < k; i++) {
+        // Safe random index
+        const idx = Math.floor(Math.random() * pixelCount) * 3;
+        centroids.push([
+            pixelData[idx] || 0, 
+            pixelData[idx+1] || 0, 
+            pixelData[idx+2] || 0
+        ]);
+    }
+
+    const assignments = new Int8Array(pixelCount);
+    
+    for (let iter = 0; iter < maxIterations; iter++) {
+        let changed = false;
+        const sums = Array(k).fill(0).map(() => [0, 0, 0]);
+        const counts = Array(k).fill(0);
+
+        // Assign pixels to closest centroid
+        for (let i = 0; i < pixelCount; i++) {
+            const idx = i * 3;
+            const r = pixelData[idx];
+            const g = pixelData[idx + 1];
+            const b = pixelData[idx + 2];
+            
+            let minDist = Infinity;
+            let closest = 0;
+            
+            for (let c = 0; c < k; c++) {
+                const dist = Math.pow(r - centroids[c][0], 2) + 
+                             Math.pow(g - centroids[c][1], 2) + 
+                             Math.pow(b - centroids[c][2], 2);
+                if (dist < minDist) {
+                    minDist = dist;
+                    closest = c;
+                }
+            }
+            
+            if (assignments[i] !== closest) {
+                assignments[i] = closest;
+                changed = true;
+            }
+            
+            sums[closest][0] += r;
+            sums[closest][1] += g;
+            sums[closest][2] += b;
+            counts[closest]++;
+        }
+        
+        // Update centroids
+        for (let c = 0; c < k; c++) {
+            if (counts[c] > 0) {
+                centroids[c] = [
+                    sums[c][0] / counts[c],
+                    sums[c][1] / counts[c],
+                    sums[c][2] / counts[c]
+                ];
+            }
+        }
+        
+        if (!changed) break;
+    }
+    
+    // Sort centroids by population
+    const centroidCounts = centroids.map((c, i) => ({ 
+        color: c.map(Math.round), 
+        count: 0 
+    }));
+    
+    for (let i = 0; i < pixelCount; i++) {
+        if (assignments[i] >= 0 && assignments[i] < k) {
+            centroidCounts[assignments[i]].count++;
+        }
+    }
+    
+    return centroidCounts
+        .sort((a, b) => b.count - a.count)
+        .map(c => c.color)
+        .filter(c => !isNaN(c[0]) && c.length === 3);
+}
+
 // Extract dominant color
 async function extractColor(imagePath) {
     try {
-        // Downsample to 1x1 to get average color
-        const { data } = await sharp(imagePath)
-            .resize(1, 1, { fit: 'cover' })
+        // Resize for performance (50x50 is sufficient for dominant colors)
+        const { data, info } = await sharp(imagePath)
+            .resize(50, 50, { fit: 'cover' })
+            .removeAlpha()
             .raw()
             .toBuffer({ resolveWithObject: true });
         
-        const [r, g, b] = data;
+        // Calculate average color from the same data
+        let rSum = 0, gSum = 0, bSum = 0;
+        const total = info.width * info.height;
+        for(let i=0; i<total; i++) {
+            const idx = i * 3;
+            rSum += data[idx];
+            gSum += data[idx+1];
+            bSum += data[idx+2];
+        }
+        
+        const avgColor = [
+            Math.round(rSum / total),
+            Math.round(gSum / total),
+            Math.round(bSum / total)
+        ];
+
+        // Calculate palette
+        let palette = getDominantColors(data, total, 5);
+        
+        // Fallback if palette is empty
+        if (!palette || palette.length === 0) {
+            palette = [avgColor];
+        }
+
         return {
-            color: [r, g, b],
-            colorVector: [r / 255.0, g / 255.0, b / 255.0]
+            color: avgColor,
+            colorVector: [avgColor[0] / 255.0, avgColor[1] / 255.0, avgColor[2] / 255.0],
+            palette: palette
         };
     } catch (error) {
         console.error('Error extracting color:', error);
@@ -500,7 +611,8 @@ async function extractFeatures(imagePath) {
             features,
             keywords,
             color: colorData ? colorData.color : null,
-            colorVector: colorData ? colorData.colorVector : null
+            colorVector: colorData ? colorData.colorVector : null,
+            palette: colorData ? colorData.palette : null
         };
     } catch (error) {
         console.error(`Error analyzing ${imagePath}:`, error);

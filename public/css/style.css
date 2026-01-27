@@ -492,19 +492,15 @@ body.ui-hidden #sidebar-right {
     cursor: pointer;
     opacity: 0.5;
     transition: opacity 0.2s;
-    background: rgba(0,0,0,0.5);
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
+    background: transparent;
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 1px solid var(--border);
+    border: none;
 }
 
 #active-tag-close:hover {
     opacity: 1;
-    background: rgba(255,255,255,0.1);
 }
 
 /* ============================================
@@ -566,10 +562,13 @@ body.ui-hidden #sidebar-right {
 }
 
 .progress-bar-container {
-    height: 2px;
+    height: 4px;
     background: var(--border);
     margin-top: 10px;
+    margin-bottom: 8px;
     position: relative;
+    border-radius: 2px;
+    overflow: hidden;
 }
 
 .progress-bar {
@@ -581,9 +580,28 @@ body.ui-hidden #sidebar-right {
 
 .progress-text {
     font-family: 'Roboto Mono', monospace;
-    font-size: 0.625rem;
-    margin-top: 8px;
-    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.progress-details {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--fg);
+    opacity: 0.8;
+}
+
+.stats-compact {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.stat-separator {
+    opacity: 0.3;
 }
 
 .detected-tags {
@@ -626,11 +644,12 @@ body.ui-hidden #sidebar-right {
 #lightbox {
     display: none;
     cursor: zoom-out;
+    flex-direction: column;
 }
 
 #lightbox-img {
     max-width: 95%;
-    max-height: 95%;
+    max-height: 85vh;
     box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
 }
 
@@ -829,4 +848,59 @@ body.ui-hidden .ui-toggle-btn {
 
 .chevron.expanded {
     transform: rotate(180deg);
+}
+
+/* ============================================
+   PALETTE SWATCHES
+   ============================================ */
+
+.palette-container {
+    display: flex;
+    gap: 4px;
+    margin: 8px 0;
+}
+
+.palette-swatch {
+    width: 20px;
+    height: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    border-radius: 2px;
+    display: inline-block;
+}
+
+/* ============================================
+   LIGHTBOX CONTROLS
+   ============================================ */
+
+.lightbox-controls {
+    margin-top: 20px;
+    display: flex;
+    gap: 20px;
+    z-index: 6001;
+    background: transparent;
+    padding: 0;
+    border: none;
+}
+
+.lightbox-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--fg);
+    font-size: 1.5rem;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: all 0.2s;
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+
+.lightbox-btn:hover {
+    opacity: 1;
+    transform: scale(1.1);
+    background: transparent;
+    border-color: #fff;
 }

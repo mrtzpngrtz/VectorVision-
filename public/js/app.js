@@ -1,4 +1,6 @@
 let images = [];
+let currentVisibleImages = [];
+let hoveredIndex = -1;
 let hardwareAccel = 'NATIVE_ONNX';
 const mapContainer = document.getElementById('map-container');
 const statusDiv = document.getElementById('status');
@@ -128,13 +130,70 @@ function toggleSection(sectionId) {
 // --- Lightbox Logic ---
 const lightbox = document.getElementById('lightbox');
 const lightboxImg = document.getElementById('lightbox-img');
+let currentLightboxPath = null;
+let currentLightboxIndex = -1;
 
-function showLightbox(url) {
-    lightboxImg.src = url;
+// Initialize state to ensure checks work
+lightbox.style.display = 'none';
+
+function showLightbox(indexOrUrl) {
+    if (typeof indexOrUrl === 'number') {
+        // Index mode (supports navigation)
+        const index = indexOrUrl;
+        if (index < 0 || index >= currentVisibleImages.length) return;
+        
+        currentLightboxIndex = index;
+        const img = currentVisibleImages[index];
+        
+        const url = isElectron ? `file:///${img.path.replace(/\\/g, '/')}` : (img.url || img.thumbUrl);
+        lightboxImg.src = url;
+        currentLightboxPath = img.path;
+    } else {
+        // Legacy URL mode (no navigation)
+        lightboxImg.src = indexOrUrl;
+        currentLightboxPath = null; // Can't determine path easily or passed separately?
+        // Actually, previous implementation tried to extract it.
+        if (indexOrUrl.startsWith('file:///')) {
+            try {
+                currentLightboxPath = decodeURIComponent(indexOrUrl.replace('file:///', ''));
+            } catch (e) {}
+        }
+    }
     lightbox.style.display = 'flex';
 }
 
-lightbox.onclick = () => {
+function navigateLightbox(direction) {
+    if (currentLightboxIndex === -1 || currentVisibleImages.length === 0) return;
+    
+    let newIndex = currentLightboxIndex + direction;
+    if (newIndex < 0) newIndex = currentVisibleImages.length - 1;
+    if (newIndex >= currentVisibleImages.length) newIndex = 0;
+    
+    showLightbox(newIndex);
+}
+
+async function copyLightboxImage() {
+    if (!currentLightboxPath || !isElectron) return;
+    const res = await window.electronAPI.copyToClipboard(currentLightboxPath);
+    if (res.success) {
+        statusDiv.textContent = 'COPIED_TO_CLIPBOARD';
+        setTimeout(() => statusDiv.textContent = 'SYSTEM_READY', 2000);
+    }
+}
+
+async function saveLightboxImage() {
+    if (!currentLightboxPath || !isElectron) return;
+    await window.electronAPI.saveImage(currentLightboxPath);
+}
+
+async function openLightboxFolder() {
+    if (!currentLightboxPath || !isElectron) return;
+    await window.electronAPI.openInFolder(currentLightboxPath);
+}
+
+lightbox.onclick = (e) => {
+    if (e.target.closest('.lightbox-btn')) return;
+    if (e.target.closest('#lightbox-img')) return;
     lightbox.style.display = 'none';
     lightboxImg.src = '';
 };
@@ -355,7 +414,8 @@ async function rescanFolder(skipConfirmation = false) {
             features: null,
             keywords: null,
             color: null,
-            colorVector: null
+            colorVector: null,
+            palette: null
         }));
         
         statusDiv.textContent = `FORCING_RESCAN: ${images.length}`;
@@ -471,6 +531,7 @@ async function processImagesNative(toAnalyzeList) {
                 img.keywords = analyzed.keywords;
                 img.color = analyzed.color;
                 img.colorVector = analyzed.colorVector;
+                img.palette = analyzed.palette;
             }
         });
         
@@ -904,6 +965,7 @@ async function saveData() {
         dataToSave[img.path] = {
             path: img.path, created: img.created,
             features: img.features, color: img.color, colorVector: img.colorVector, keywords: img.keywords,
+            palette: img.palette,
             x: img.x, y: img.y, x3: img.x3, y3: img.y3, z3: img.z3,
             xC: img.xC, yC: img.yC, xC3: img.xC3, yC3: img.yC3, zC3: img.zC3,
             xLight: img.xLight, yLight: img.yLight, zLight: img.zLight
@@ -1058,6 +1120,16 @@ function displayImages(imageList) {
                 const tags = img.keywords.map(k => k.className.toUpperCase()).join(', ');
                 content += `TAGS: ${tags}<br>`;
             }
+            if (img.palette && img.palette.length > 0) {
+                content += `PALETTE:<br>`;
+                content += `<div class="palette-container">`;
+                img.palette.forEach(c => {
+                    content += `<div class="palette-swatch" style="background: rgb(${c[0]},${c[1]},${c[2]})" title="RGB: ${c.join(',')}"></div>`;
+                });
+                content += `</div>`;
+            } else {
+                content += `PALETTE: Scanning... (Rescan if missing)<br>`;
+            }
             content += `POS: [${Math.round(x)},${Math.round(y)},${Math.round(z)}]`;
             semanticInfoDiv.innerHTML = content;
             el.classList.add('is-hovered');
@@ -1091,6 +1163,11 @@ function displayImages(imageList) {
         };
         el.onmouseleave = () => {
             el.classList.remove('is-hovered');
+            
+            // Clear info text
+            if (semanticInfoDiv) {
+                semanticInfoDiv.textContent = 'Hover over an image to see details...';
+            }
             
             // Clear semantic highlighting
             clearHighlight();
@@ -1149,7 +1226,7 @@ function displayImages(imageList) {
             e.stopPropagation();
             if (isElectron) {
                 const fullPath = `file:///${img.path.replace(/\\/g, '/')}`;
-                showLightbox(fullPath);
+                showLightbox(fullPath, img.path);
             } else {
                 showLightbox(img.url);
             }
@@ -1311,6 +1388,7 @@ async function searchImages() {
     // Clear and rebuild with only matched images
     mapContainer.innerHTML = '';
     imageNodeElements = [];
+    currentVisibleImages = matchedImages;
     
     const gridSize = Math.ceil(Math.sqrt(matchedImages.length) * 1.5);
     const cellW = 4000 / (gridSize + 2);
@@ -1318,7 +1396,7 @@ async function searchImages() {
     
     const fragment = document.createDocumentFragment();
     
-    matchedImages.forEach((img) => {
+    matchedImages.forEach((img, index) => {
         const el = document.createElement('div');
         el.className = 'image-node';
         el.id = `node-${img.originalIndex}`;
@@ -1335,10 +1413,21 @@ async function searchImages() {
         el._visible = true;
         
         el.onmouseenter = () => {
+            hoveredIndex = index;
             let content = `ID: ${img.name.toUpperCase()}<br>`;
             if (img.keywords && img.keywords.length > 0) {
                 const tags = img.keywords.map(k => k.className.toUpperCase()).join(', ');
                 content += `TAGS: ${tags}<br>`;
+            }
+            if (img.palette && img.palette.length > 0) {
+                content += `PALETTE:<br>`;
+                content += `<div class="palette-container">`;
+                img.palette.forEach(c => {
+                    content += `<div class="palette-swatch" style="background: rgb(${c[0]},${c[1]},${c[2]})" title="RGB: ${c.join(',')}"></div>`;
+                });
+                content += `</div>`;
+            } else {
+                content += `PALETTE: Scanning...<br>`;
             }
             content += `POS: [${Math.round(x)},${Math.round(y)},0]`;
             semanticInfoDiv.innerHTML = content;
@@ -1365,7 +1454,13 @@ async function searchImages() {
         };
         
         el.onmouseleave = () => {
+            hoveredIndex = -1;
             el.classList.remove('is-hovered');
+            
+            // Clear info text
+            if (semanticInfoDiv) {
+                semanticInfoDiv.textContent = 'Hover over an image to see details...';
+            }
             
             // Clear preview image
             const previewImg = document.getElementById('preview-img');
@@ -1415,12 +1510,7 @@ async function searchImages() {
         // Double-click for lightbox
         el.ondblclick = (e) => {
             e.stopPropagation();
-            if (isElectron) {
-                const fullPath = `file:///${img.path.replace(/\\/g, '/')}`;
-                showLightbox(fullPath);
-            } else {
-                showLightbox(img.url);
-            }
+            showLightbox(index);
         };
         
         const imageElement = document.createElement('img');
@@ -1528,24 +1618,66 @@ function updateProximityFading() {
     for (let i = start; i < end; i++) {
         const node = imageNodeElements[i];
         const worldZ = node._tz_val + transZ;
-        if (worldZ > 200 || worldZ < -6000) {
+        
+        // Extended view distance
+        if (worldZ > 300 || worldZ < -15000) {
             if (node._visible) { node.style.display = 'none'; node._visible = false; }
             continue;
         } else {
             if (!node._visible) { node.style.display = 'block'; node._visible = true; }
         }
+        
         let opacity = 1; let brightness = 1;
-        if (worldZ > -500) opacity = Math.max(0, Math.min(1, (worldZ + 1000) / 500 - 1));
-        if (worldZ < -2000) brightness = Math.max(0.1, 1 - (Math.abs(worldZ + 2000) / 4000));
-        node.style.opacity = opacity; node.style.filter = `brightness(${brightness})`;
+        
+        // Fade out only when very close to camera (near clip)
+        if (worldZ > 100) opacity = Math.max(0, 1 - (worldZ - 100) / 200);
+        
+        // Distance fog/darkness
+        if (worldZ < -3000) brightness = Math.max(0.1, 1 - (Math.abs(worldZ + 3000) / 8000));
+        
+        node.style.opacity = opacity; 
+        node.style.filter = `brightness(${brightness})`;
     }
     staggeredIndex = (staggeredIndex + BATCH_SIZE) % imageNodeElements.length;
 }
 
 window.addEventListener('keydown', (e) => { 
-    if (e.code === 'Space') isSpacePressed = true;
+    // Ignore key events if typing in input
+    if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
+
+    if (e.code === 'Space') {
+        isSpacePressed = true;
+        // Lightbox toggle
+        if (lightbox.style.display !== 'none') {
+            lightbox.style.display = 'none';
+            lightboxImg.src = '';
+        } else if (hoveredIndex !== -1) {
+            e.preventDefault(); // Prevent scroll
+            showLightbox(hoveredIndex);
+        }
+    }
+    
+    if (e.code === 'ArrowLeft') {
+        if (lightbox.style.display !== 'none') {
+            e.preventDefault();
+            navigateLightbox(-1);
+        }
+    }
+    if (e.code === 'ArrowRight') {
+        if (lightbox.style.display !== 'none') {
+            e.preventDefault();
+            navigateLightbox(1);
+        }
+    }
+    
     if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') isShiftPressed = true;
-    if (e.code === 'Escape') clearHighlight();
+    if (e.code === 'Escape') {
+        clearHighlight();
+        if (lightbox.style.display !== 'none') {
+            lightbox.style.display = 'none';
+            lightboxImg.src = '';
+        }
+    }
 });
 window.addEventListener('keyup', (e) => { 
     if (e.code === 'Space') isSpacePressed = false;
