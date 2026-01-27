@@ -5,17 +5,88 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ImageVector - Desktop</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=horizontal_ui">
+    <link rel="stylesheet" href="css/style.css?v=dual_sidebar">
 </head>
 <body>
     <div id="app">
+        <!-- LEFT SIDEBAR (Navigation & View) -->
+        <div id="sidebar-left" class="sidebar">
+            <div class="sidebar-header">
+                <h1 class="app-title">VECTOR VISION</h1>
+                <div class="close-sidebar-btn" onclick="toggleUI()" title="Close Sidebar">✕</div>
+            </div>
+
+            <div class="sidebar-scroll-area">
+                <!-- LIBRARIES -->
+                <div class="sidebar-section">
+                    <div class="section-label" onclick="toggleSidebarSection('libraries-content')">
+                        LIBRARIES <span class="chevron">▼</span>
+                    </div>
+                    <div id="libraries-content" class="section-content">
+                        <div id="libraries-list"></div>
+                        <button onclick="createNewLibrary()" class="primary-btn compact">+ New Library</button>
+                    </div>
+                </div>
+
+                <!-- DISPLAY -->
+                <div class="sidebar-section">
+                    <div class="section-label">DISPLAY MODE</div>
+                    <div class="section-content">
+                        <div class="radio-group-vertical">
+                            <button onclick="setViewMode(false)" id="view-2d" class="radio-btn active">2D Flat View</button>
+                            <button onclick="setViewMode(true)" id="view-3d" class="radio-btn">3D Space View</button>
+                        </div>
+                        
+                        <div id="view-presets" style="display:none;">
+                            <button id="auto-move-toggle" onclick="toggleAutoMove()" class="secondary-btn compact" style="width:100%">Auto Drift: ON</button>
+                        </div>
+                        
+                        <!-- Aspect Ratio Control -->
+                        <div style="margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px;">
+                            <div class="section-label" style="margin-bottom: 6px;">GRID RATIO</div>
+                            <div class="radio-group-vertical">
+                                <button onclick="setAspectRatio(1)" id="ratio-1" class="radio-btn active">1:1 Square</button>
+                                <button onclick="setAspectRatio(1.5)" id="ratio-1.5" class="radio-btn">3:2 Landscape</button>
+                                <button onclick="setAspectRatio(0.666)" id="ratio-0.66" class="radio-btn">2:3 Portrait</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SORT -->
+                <div class="sidebar-section">
+                    <div class="section-label">SORTING</div>
+                    <div class="section-content">
+                        <div class="radio-group-vertical">
+                            <button onclick="setSorting('semantic')" id="sort-semantic" class="radio-btn active">Semantic (AI)</button>
+                            <button onclick="setSorting('color')" id="sort-color" class="radio-btn">Color Spectrum</button>
+                            <button onclick="setSorting('lightness')" id="sort-lightness" class="radio-btn">Lightness</button>
+                            <button onclick="setSorting('grid')" id="sort-grid" class="radio-btn">Grid (Date)</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar-footer">
+                <!-- Footer content can go here if needed -->
+            </div>
+        </div>
+
+        <!-- MAIN VIEW -->
         <div id="main">
+            <div class="ui-toggle-btn" onclick="toggleUI()" title="Show UI">☰</div>
+            
             <div id="map-container"></div>
+            
+            <div id="active-tag-display">
+                <span id="active-tag-text"></span>
+                <div id="active-tag-close" onclick="clearAll()">✕</div>
+            </div>
             
             <div id="fps-counter">FPS: --</div>
             <div id="zoom-info">100%</div>
 
-            <!-- Loading Overlay (Canvas Only) -->
+            <!-- Loading Overlay -->
             <div id="loading-overlay" style="display: none;">
                 <div class="loading-content">
                     <div class="loader"></div>
@@ -32,102 +103,56 @@
                             <span style="margin-left: 12px; opacity: 0.5;">ETA: <span id="stat-eta">--</span></span>
                         </div>
                     </div>
-                    <!-- Detected Tags Display -->
                     <div id="detected-tags" class="detected-tags"></div>
                 </div>
             </div>
-
-            <!-- Image Preview Overlay -->
-            <div id="image-preview-overlay" class="image-preview-overlay">
-                <img id="preview-img" style="display: none;">
-                <span id="preview-placeholder" style="opacity: 0.3; font-size: 0.7rem; font-family: monospace;">Hover image</span>
-            </div>
         </div>
 
-        <!-- Bottom Horizontal UI -->
-        <div id="bottom-ui" class="bottom-ui">
-            <!-- Libraries Section -->
-            <div class="bottom-section">
-                <label class="section-label" onclick="toggleBottomSection('libraries-dropdown')">
-                    LIBRARIES <span class="chevron">▲</span>
-                </label>
-                <div id="libraries-dropdown" class="bottom-dropdown" style="display: none;">
-                    <div id="libraries-list"></div>
-                    <button onclick="createNewLibrary()" class="primary-btn compact">+ New</button>
-                </div>
+        <!-- RIGHT SIDEBAR (Inspector) -->
+        <div id="sidebar-right" class="sidebar">
+            <div class="sidebar-header">
+                <div class="section-label" style="margin:0; opacity: 1;">INSPECTOR</div>
+                <div class="close-sidebar-btn" onclick="toggleUI()" title="Close Sidebar">✕</div>
             </div>
 
-            <!-- Display Section -->
-            <div class="bottom-section">
-                <label class="section-label">DISPLAY</label>
-                <div class="bottom-controls">
-                    <div class="radio-group-horizontal">
-                        <button onclick="setViewMode(false)" id="view-2d" class="radio-btn active">2D</button>
-                        <button onclick="setViewMode(true)" id="view-3d" class="radio-btn">3D</button>
+            <div class="sidebar-scroll-area">
+                <!-- PREVIEW -->
+                <div class="sidebar-section">
+                    <div class="section-label">PREVIEW</div>
+                    <div id="preview-container" style="width: 100%; aspect-ratio: 1; background: rgba(255,255,255,0.02); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; overflow: hidden;">
+                        <img id="preview-img" style="max-width: 100%; max-height: 100%; display: none; object-fit: contain;">
+                        <span id="preview-placeholder" style="opacity: 0.3; font-size: 0.7rem; font-family: monospace;">Hover image</span>
+                    </div>
+                </div>
+
+                <!-- INFO -->
+                <div class="sidebar-section">
+                    <div class="section-label">INFO</div>
+                    <div id="semantic-info" class="info-content" style="white-space: pre-wrap;">Hover over an image to see details...</div>
+                </div>
+
+                <!-- FILTER -->
+                <div class="sidebar-section">
+                    <div class="section-label">SEARCH & FILTER</div>
+                    <div class="section-content">
+                        <div class="input-group">
+                            <input type="text" id="search-input" placeholder="Search tags...">
+                            <button onclick="searchImages()" class="icon-btn">→</button>
+                            <button onclick="clearAll()" class="icon-btn">✕</button>
+                        </div>
+                        
+                        <div id="library-wordcloud-section" style="padding: 0; border: none; margin-top: 10px;">
+                            <div id="library-wordcloud" class="library-wordcloud"></div>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Sorting Section -->
-            <div class="bottom-section">
-                <label class="section-label">SORT</label>
-                <div class="bottom-controls">
-                    <div class="radio-group-horizontal">
-                        <button onclick="setSorting('grid')" id="sort-grid" class="radio-btn">Grid</button>
-                        <button onclick="setSorting('semantic')" id="sort-semantic" class="radio-btn active">Semantic</button>
-                        <button onclick="setSorting('color')" id="sort-color" class="radio-btn">Color</button>
-                        <button onclick="setSorting('lightness')" id="sort-lightness" class="radio-btn">Light</button>
-                    </div>
+            <div class="sidebar-footer">
+                <div id="system-specs" class="specs-compact">
+                    <span id="hw-accel-status">READY</span>
                 </div>
             </div>
-
-            <!-- Filter Section -->
-            <div class="bottom-section bottom-section-expand">
-                <label class="section-label" onclick="toggleBottomSection('tags-dropdown')">
-                    FILTER <span class="chevron">▲</span>
-                </label>
-                <div class="bottom-controls">
-                    <div class="input-group-horizontal">
-                        <input type="text" id="search-input" placeholder="Search tags...">
-                        <button onclick="searchImages()" class="icon-btn" title="Search">→</button>
-                        <button onclick="clearAll()" class="icon-btn" title="Clear">✕</button>
-                    </div>
-                </div>
-                <div id="tags-dropdown" class="bottom-dropdown tags-dropdown" style="display: none;">
-                    <div id="library-wordcloud-section">
-                        <div id="library-wordcloud" class="library-wordcloud-horizontal"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Info Section -->
-            <div class="bottom-section">
-                <label class="section-label">INFO</label>
-                <div class="bottom-info">
-                    <div id="semantic-info" class="info-compact">Hover image...</div>
-                    <div id="system-specs" class="specs-compact">
-                        <span id="hw-accel-status">READY</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 3D Controls Section (shown conditionally) -->
-            <div id="view-presets" class="bottom-section" style="display:none;">
-                <label class="section-label">3D</label>
-                <div class="bottom-controls">
-                    <button id="auto-move-toggle" onclick="toggleAutoMove()" class="secondary-btn compact" style="padding: 6px 10px; font-size: 0.6rem;">DRIFT: ON</button>
-                </div>
-            </div>
-
-            <!-- Toggle UI Button -->
-            <div class="bottom-section">
-                <button onclick="toggleUI()" class="icon-btn-large" title="Hide UI">▼</button>
-            </div>
-        </div>
-
-        <!-- Restore UI Button (shown when hidden) -->
-        <div class="ui-toggle-btn-bottom" onclick="toggleUI()" title="Show UI">
-            ▲
         </div>
     </div>
 
@@ -157,6 +182,30 @@
             <div class="modal-buttons">
                 <button id="confirm-ok-btn" class="primary-btn">OK</button>
                 <button id="confirm-cancel-btn" class="secondary-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Start Popup -->
+    <div id="start-popup" style="display: none;">
+        <div class="modal-content start-popup-content">
+            <h3>Welcome to VectorVision</h3>
+            <div class="start-popup-body">
+                <p>VectorVision organizes your images using AI to find visual similarities.</p>
+                <ul>
+                    <li><strong>Connect</strong> your local image folders as libraries</li>
+                    <li><strong>Explore</strong> your collection in 2D or 3D space</li>
+                    <li><strong>Filter</strong> by AI-generated tags and visual properties</li>
+                </ul>
+                <p class="small-text">All analysis happens locally on your GPU. No cloud.</p>
+            </div>
+            <div class="start-popup-footer">
+                <label class="checkbox-container">
+                    <input type="checkbox" id="dont-show-again">
+                    <span class="checkmark"></span>
+                    Don't show this again
+                </label>
+                <button onclick="closeStartPopup()" class="primary-btn">Get Started</button>
             </div>
         </div>
     </div>

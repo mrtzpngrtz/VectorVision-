@@ -55,10 +55,16 @@ This is not a commercial product. It is a personal tool built through vibecoding
     *   **Hover** to see image info, tags, and preview
     *   **Depth Control** to expand/compress 3D clusters
     *   **Auto-Drift** mode for cinematic 3D exploration
+*   **Dual Sidebar Interface**:
+    *   **Navigation Sidebar (Left)**: Library management, view modes, and sorting controls.
+    *   **Inspector Sidebar (Right)**: Image preview, details, tags, and search filters.
+    *   **Clean Mode**: Hide UI for immersive viewing.
+*   **Customizable Grid**:
+    *   **Aspect Ratio Control**: Switch between Square (1:1), Landscape (3:2), and Portrait (2:3) grids.
 *   **Professional Design**: 
     *   Roboto Mono typography for interface elements
     *   Helvetica/Arial for readable descriptions
-    *   Compact, space-efficient library management
+    *   Active Tag Display with bold typography
     *   Clean visual hierarchy throughout
 *   **100% Private**: All AI analysis happens locally on your machine - no cloud, no API keys required
 

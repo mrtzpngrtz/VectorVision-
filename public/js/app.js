@@ -57,6 +57,26 @@ function updateStatus(code, description = null) {
 let libraries = [];
 let currentLibrary = null;
 let pendingLibraryAction = null;
+let currentAspectRatio = 1;
+
+function setAspectRatio(ratio) {
+    currentAspectRatio = ratio;
+    
+    // Update UI buttons
+    document.querySelectorAll('[id^="ratio-"]').forEach(btn => btn.classList.remove('active'));
+    let btnId;
+    if (ratio === 1) btnId = 'ratio-1';
+    else if (ratio === 1.5) btnId = 'ratio-1.5';
+    else if (ratio === 0.666) btnId = 'ratio-0.66';
+    
+    if (btnId) {
+        const btn = document.getElementById(btnId);
+        if (btn) btn.classList.add('active');
+    }
+    
+    // Re-render
+    displayImages(images);
+}
 
 function setLoading(active) {
     const loadingOverlay = document.getElementById('loading-overlay');
@@ -71,6 +91,22 @@ let is3D = false;
 let currentSort = 'semantic'; // 'semantic', 'color', 'grid', 'lightness'
 let som2D = null;
 let som3D = null;
+
+function toggleSidebarSection(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    
+    // Get chevron
+    const label = el.parentElement.querySelector('.section-label .chevron');
+    
+    if (el.style.display === 'none') {
+        el.style.display = 'flex';
+        if (label) label.style.transform = 'rotate(0deg)';
+    } else {
+        el.style.display = 'none';
+        if (label) label.style.transform = 'rotate(-90deg)';
+    }
+}
 
 function toggleUI() {
     document.body.classList.toggle('ui-hidden');
@@ -983,14 +1019,35 @@ function displayImages(imageList) {
     let maxX = Math.max(...validCoords.map(c => c.x), 1);
     let maxY = Math.max(...validCoords.map(c => c.y), 1);
     let maxZ = Math.max(...validCoords.map(c => c.z), 1);
-    const cellW = 4000 / (maxX + 2); const cellH = 4000 / (maxY + 2); const cellD = 4000 / (maxZ + 2);
+    let cellW = 4000 / (maxX + 2); 
+    let cellH = 4000 / (maxY + 2); 
+    
+    // Apply aspect ratio adjustments
+    if (!is3D) {
+        if (currentAspectRatio > 1) {
+            // Landscape: Increase width relative to height
+            cellW = cellH * currentAspectRatio;
+        } else if (currentAspectRatio < 1) {
+            // Portrait: Increase height relative to width
+            cellH = cellW / currentAspectRatio;
+        }
+    }
+    
+    const cellD = 4000 / (maxZ + 2);
     mapContainer.style.backgroundSize = `${cellW}px ${cellH}px`;
     const fragment = document.createDocumentFragment();
     validIndices.forEach(index => {
         const img = imageList[index]; const c = coords[index];
         const el = document.createElement('div');
         el.className = 'image-node'; el.id = `node-${index}`;
-        const sizeW = is3D ? 80 : cellW; const sizeH = is3D ? 80 : cellH;
+        const sizeW = is3D ? 80 : cellW; 
+        const sizeH = is3D ? 80 : cellH;
+        
+        // Ensure inner image maintains ratio
+        // if (!is3D) {
+        //    el.style.aspectRatio = `${currentAspectRatio}`;
+        // }
+        
         el.style.width = `${sizeW}px`; el.style.height = `${sizeH}px`;
         const x = c.x * cellW; const y = c.y * cellH; const z = c.z * cellD;
         el.style.setProperty('--tx', `${x}px`); el.style.setProperty('--ty', `${y}px`); el.style.setProperty('--tz', `${z}px`);
@@ -1160,6 +1217,11 @@ function clearHighlight() {
 
 function clearAll() {
     document.getElementById('search-input').value = '';
+    
+    // Clear active tag display
+    const tagDisplay = document.getElementById('active-tag-display');
+    if (tagDisplay) tagDisplay.classList.remove('visible');
+
     statusDiv.textContent = 'RESTORING_VIEW...';
     
     // Simply redisplay all images with their original layout
@@ -1170,6 +1232,31 @@ function clearAll() {
 
 async function searchImages() {
     const keyword = document.getElementById('search-input').value.toLowerCase().trim();
+    
+    // Update active tag display
+    const tagDisplay = document.getElementById('active-tag-display');
+    if (tagDisplay) {
+        // Clear content
+        tagDisplay.innerHTML = '';
+        
+        if (keyword) {
+            const span = document.createElement('span');
+            span.id = 'active-tag-text';
+            span.textContent = keyword;
+            tagDisplay.appendChild(span);
+            
+            const closeBtn = document.createElement('div');
+            closeBtn.id = 'active-tag-close';
+            closeBtn.textContent = '✕';
+            closeBtn.onclick = clearAll;
+            tagDisplay.appendChild(closeBtn);
+            
+            tagDisplay.classList.add('visible');
+        } else {
+            tagDisplay.classList.remove('visible');
+        }
+    }
+
     if (!keyword) { clearAll(); return; }
     
     statusDiv.textContent = 'FILTERING...';
@@ -2058,7 +2145,31 @@ async function updateLibraryImageCount() {
     }
 }
 
+// Start Popup Logic
+function initStartPopup() {
+    const popup = document.getElementById('start-popup');
+    const dontShow = localStorage.getItem('hideStartPopup');
+    
+    if (!dontShow) {
+        popup.style.display = 'flex';
+    }
+}
+
+function closeStartPopup() {
+    const popup = document.getElementById('start-popup');
+    const checkbox = document.getElementById('dont-show-again');
+    
+    if (checkbox.checked) {
+        localStorage.setItem('hideStartPopup', 'true');
+    }
+    
+    popup.style.display = 'none';
+}
+
 // Load libraries on startup
 if (isElectron) {
     loadLibraries();
 }
+
+// Initialize popup
+initStartPopup();
