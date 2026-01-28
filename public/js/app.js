@@ -61,6 +61,7 @@ let currentLibrary = null;
 let pendingLibraryAction = null;
 let selectedLibraryId = null;
 let activeColorFilter = null;
+let activeMediaFilter = 'all'; // 'all', 'video', or 'static'
 
 function setLoading(active) {
     const loadingOverlay = document.getElementById('loading-overlay');
@@ -124,6 +125,8 @@ let currentLightboxIndex = -1;
 lightbox.style.display = 'none';
 
 function showLightbox(indexOrUrl) {
+    const lightboxVideo = document.getElementById('lightbox-video');
+    
     if (typeof indexOrUrl === 'number') {
         // Index mode (supports navigation)
         const index = indexOrUrl;
@@ -133,13 +136,39 @@ function showLightbox(indexOrUrl) {
         const img = currentVisibleImages[index];
         
         const url = isElectron ? `file:///${img.path.replace(/\\/g, '/')}` : (img.url || img.thumbUrl);
-        lightboxImg.src = url;
         currentLightboxPath = img.path;
+        
+        // Check if it's a video file
+        const ext = img.path ? img.path.toLowerCase() : '';
+        const isVideoFile = ext.endsWith('.mp4') || ext.endsWith('.webm');
+        
+        if (isVideoFile) {
+            // Show video element, hide image
+            lightboxImg.style.display = 'none';
+            lightboxVideo.style.display = 'block';
+            lightboxVideo.src = url;
+        } else {
+            // Show image element, hide video
+            lightboxVideo.style.display = 'none';
+            lightboxImg.style.display = 'block';
+            lightboxImg.src = url;
+        }
     } else {
         // Legacy URL mode (no navigation)
-        lightboxImg.src = indexOrUrl;
-        currentLightboxPath = null; // Can't determine path easily or passed separately?
-        // Actually, previous implementation tried to extract it.
+        const ext = indexOrUrl.toLowerCase();
+        const isVideoFile = ext.endsWith('.mp4') || ext.endsWith('.webm');
+        
+        if (isVideoFile) {
+            lightboxImg.style.display = 'none';
+            lightboxVideo.style.display = 'block';
+            lightboxVideo.src = indexOrUrl;
+        } else {
+            lightboxVideo.style.display = 'none';
+            lightboxImg.style.display = 'block';
+            lightboxImg.src = indexOrUrl;
+        }
+        
+        currentLightboxPath = null;
         if (indexOrUrl.startsWith('file:///')) {
             try {
                 currentLightboxPath = decodeURIComponent(indexOrUrl.replace('file:///', ''));
@@ -1277,9 +1306,58 @@ function clearHighlight() {
     });
 }
 
+function filterByMediaType(type) {
+    activeMediaFilter = type;
+    
+    // Update button states
+    document.querySelectorAll('[id^="media-"]').forEach(btn => btn.classList.remove('active'));
+    const btn = document.getElementById(`media-${type}`);
+    if (btn) btn.classList.add('active');
+    
+    if (type === 'all') {
+        // Show all images
+        displayImages(images);
+        statusDiv.textContent = `SYSTEM_READY: ${images.length} items`;
+    } else {
+        // Filter by media type
+        statusDiv.textContent = `FILTERING BY ${type.toUpperCase()}...`;
+        setLoading(true);
+        
+        const filtered = images.filter(img => {
+            // Check keywords for media type
+            if (img.keywords && Array.isArray(img.keywords)) {
+                return img.keywords.some(kw => {
+                    const className = kw.className || kw;
+                    return className.toLowerCase() === type;
+                });
+            }
+            return false;
+        });
+        
+        if (filtered.length === 0) {
+            statusDiv.textContent = `NO ${type.toUpperCase()} FOUND`;
+            setLoading(false);
+            displayImages([]);
+            return;
+        }
+        
+        // Display filtered results with their original coordinates
+        statusDiv.textContent = `SHOWING ${type.toUpperCase()}: ${filtered.length} items`;
+        setLoading(false);
+        displayImages(filtered);
+        centerMap();
+    }
+}
+
 function clearAll() {
     document.getElementById('search-input').value = '';
     activeColorFilter = null;
+    activeMediaFilter = 'all';
+    
+    // Reset media type filter buttons
+    document.querySelectorAll('[id^="media-"]').forEach(btn => btn.classList.remove('active'));
+    const allBtn = document.getElementById('media-all');
+    if (allBtn) allBtn.classList.add('active');
     
     // Clear active tag display
     const tagDisplay = document.getElementById('active-tag-display');

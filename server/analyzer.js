@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const https = require('https');
 const axios = require('axios');
+const ffmpeg = require('fluent-ffmpeg');
 const { CANDIDATE_LABELS, cleanLabel } = require('./labels');
 
 let visionSession = null;
@@ -25,10 +26,45 @@ const MODEL_URLS = {
 const MODELS_DIR = path.join(__dirname, '..', 'models');
 const VISION_MODEL_PATH = path.join(MODELS_DIR, 'clip_vision.onnx');
 const TEXT_MODEL_PATH = path.join(MODELS_DIR, 'clip_text.onnx');
+const TEMP_DIR = path.join(__dirname, '../temp_frames');
 
 // Ensure models directory exists
 if (!fs.existsSync(MODELS_DIR)) {
     fs.mkdirSync(MODELS_DIR, { recursive: true });
+}
+
+// Ensure temp directory exists
+if (!fs.existsSync(TEMP_DIR)) {
+    fs.mkdirSync(TEMP_DIR, { recursive: true });
+}
+
+// Helper function to check if file is a video
+function isVideo(filePath) {
+    const ext = path.extname(filePath).toLowerCase();
+    return ['.mp4', '.webm'].includes(ext);
+}
+
+// Extract first frame from video as a temporary image
+function extractVideoFrame(videoPath) {
+    return new Promise((resolve, reject) => {
+        const tempImagePath = path.join(TEMP_DIR, `frame_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.jpg`);
+        
+        ffmpeg()
+            .input(videoPath)
+            .inputOptions(['-ss', '0'])
+            .outputOptions([
+                '-vframes', '1',
+                '-vf', 'scale=224:224:force_original_aspect_ratio=decrease,pad=224:224:(ow-iw)/2:(oh-ih)/2'
+            ])
+            .output(tempImagePath)
+            .on('end', () => {
+                resolve(tempImagePath);
+            })
+            .on('error', (err) => {
+                reject(err);
+            })
+            .run();
+    });
 }
 
 // Download model if not exists
@@ -525,17 +561,53 @@ async function extractColor(imagePath) {
 
 // Main feature extraction function
 async function extractFeatures(imagePath) {
+    let tempFrame = null;
     try {
         await loadModel();
         
+        let sourceImage = imagePath;
+        const ext = path.extname(imagePath).toLowerCase();
+        // gif, mp4, webm are animated/video content
+        const mediaType = ['.mp4', '.webm', '.gif'].includes(ext) ? 'video' : 'static';
+        
+        // If it's a video (not gif), extract first frame
+        if (isVideo(imagePath)) {
+            try {
+                tempFrame = await extractVideoFrame(imagePath);
+                sourceImage = tempFrame;
+                console.log(`Extracted frame from video: ${path.basename(imagePath)}`);
+            } catch (videoErr) {
+                console.warn(`⚠️  Skipping corrupted/unsupported video ${path.basename(imagePath)}: ${videoErr.message}`);
+                // Return minimal data for corrupted videos - they'll still appear in grid but without analysis
+                return {
+                    features: null,
+                    keywords: [{ className: mediaType, probability: 1.0 }, { className: 'unsupported', probability: 0.9 }],
+                    color: [128, 128, 128], // Gray
+                    colorVector: [0.5, 0.5, 0.5],
+                    palette: [[128, 128, 128]]
+                };
+            }
+        }
+        
         // Extract CLIP features
-        const features = await extractImageFeatures(imagePath);
+        const features = await extractImageFeatures(sourceImage);
         
         // Extract keywords using zero-shot classification
-        const keywords = await classifyImage(imagePath);
+        let keywords = await classifyImage(sourceImage);
+        
+        // Add media type as a searchable keyword
+        keywords.unshift({
+            className: mediaType,
+            probability: 1.0
+        });
         
         // Extract color
-        const colorData = await extractColor(imagePath);
+        const colorData = await extractColor(sourceImage);
+        
+        // Clean up temp frame if created
+        if (tempFrame && fs.existsSync(tempFrame)) {
+            fs.unlinkSync(tempFrame);
+        }
         
         return {
             features,
@@ -545,6 +617,10 @@ async function extractFeatures(imagePath) {
             palette: colorData ? colorData.palette : null
         };
     } catch (error) {
+        // Clean up temp frame on error
+        if (tempFrame && fs.existsSync(tempFrame)) {
+            fs.unlinkSync(tempFrame);
+        }
         console.error(`Error analyzing ${imagePath}:`, error);
         throw error;
     }

@@ -62,9 +62,13 @@ ipcMain.handle('scan-folder', async (event, folderPath) => {
         const files = fs.readdirSync(folderPath);
         const images = files.filter(file => {
             const ext = path.extname(file).toLowerCase();
-            return ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext);
+            return ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.webm'].includes(ext);
         }).map(file => {
             const filePath = path.join(folderPath, file);
+            const ext = path.extname(file).toLowerCase();
+            // gif, mp4, webm are animated/video content
+            const mediaType = ['.mp4', '.webm', '.gif'].includes(ext) ? 'video' : 'static';
+            
             let created = 0;
             try {
                 const stats = fs.statSync(filePath);
@@ -74,7 +78,8 @@ ipcMain.handle('scan-folder', async (event, folderPath) => {
             return {
                 name: file,
                 path: filePath,
-                created: created
+                created: created,
+                mediaType: mediaType
             };
         });
 
@@ -209,19 +214,75 @@ ipcMain.handle('analyze-images', async (event, imagePaths, forceReloadLabels = f
     }
 });
 
+// Helper function to check if file is a video
+function isVideo(filePath) {
+    const ext = path.extname(filePath).toLowerCase();
+    return ['.mp4', '.webm'].includes(ext);
+}
+
+// Helper function to extract video frame
+function extractVideoFrame(videoPath) {
+    return new Promise((resolve, reject) => {
+        const ffmpeg = require('fluent-ffmpeg');
+        const TEMP_DIR = path.join(__dirname, 'temp_frames');
+        
+        // Ensure temp directory exists
+        if (!fs.existsSync(TEMP_DIR)) {
+            fs.mkdirSync(TEMP_DIR, { recursive: true });
+        }
+        
+        const tempImagePath = path.join(TEMP_DIR, `frame_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.jpg`);
+        
+        ffmpeg()
+            .input(videoPath)
+            .inputOptions(['-ss', '0'])
+            .outputOptions([
+                '-vframes', '1',
+                '-vf', 'scale=224:224:force_original_aspect_ratio=decrease,pad=224:224:(ow-iw)/2:(oh-ih)/2'
+            ])
+            .output(tempImagePath)
+            .on('end', () => resolve(tempImagePath))
+            .on('error', (err) => reject(err))
+            .run();
+    });
+}
+
 // Get image as data URL for thumbnails
 ipcMain.handle('get-image-data', async (event, imagePath) => {
+    let tempFrame = null;
     try {
         const sharp = require('sharp');
-        const buffer = await sharp(imagePath)
+        let sourceImage = imagePath;
+        
+        // If it's a video, extract first frame
+        if (isVideo(imagePath)) {
+            try {
+                tempFrame = await extractVideoFrame(imagePath);
+                sourceImage = tempFrame;
+            } catch (videoErr) {
+                console.error('Video frame extraction error:', videoErr);
+                throw new Error('Failed to extract video frame');
+            }
+        }
+        
+        const buffer = await sharp(sourceImage)
             .resize(150, 150, { fit: 'cover' })
             .jpeg({ quality: 70 })
             .toBuffer();
+        
+        // Clean up temp frame if created
+        if (tempFrame && fs.existsSync(tempFrame)) {
+            fs.unlinkSync(tempFrame);
+        }
         
         return { 
             dataUrl: `data:image/jpeg;base64,${buffer.toString('base64')}`
         };
     } catch (error) {
+        // Clean up temp frame on error
+        if (tempFrame && fs.existsSync(tempFrame)) {
+            fs.unlinkSync(tempFrame);
+        }
         throw new Error(error.message);
     }
 });

@@ -17,6 +17,9 @@ server/libraries.json
 # AI Models (downloaded at runtime)
 models/
 
+# Temporary video frames
+temp_frames/
+
 # Build Output
 dist/
 build/

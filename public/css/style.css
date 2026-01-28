@@ -209,6 +209,37 @@ body.ui-hidden #sidebar-right {
     color: var(--bg);
 }
 
+/* Horizontal Radio Groups */
+.radio-group-horizontal {
+    display: flex;
+    flex-direction: row;
+    gap: 4px;
+}
+
+.radio-group-horizontal .radio-btn {
+    flex: 1;
+    padding: 6px 8px;
+    font-size: 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    background: var(--surface-2);
+    color: var(--fg);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Roboto Mono', monospace;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.radio-group-horizontal .radio-btn:hover:not(.active) {
+    background: var(--hover-bg);
+}
+
+.radio-group-horizontal .radio-btn.active {
+    background: var(--fg);
+    color: var(--bg);
+}
+
 /* Inputs */
 .input-group {
     display: flex;

@@ -122,6 +122,13 @@
                 <div class="sidebar-section" style="border-bottom: none;">
                     <div class="section-label">SEARCH & FILTER</div>
                     <div class="section-content">
+                        <div class="section-label" style="font-size: 0.7rem; opacity: 0.6; margin-bottom: 5px;">MEDIA TYPE</div>
+                        <div class="radio-group-horizontal" style="margin-bottom: 10px;">
+                            <button onclick="filterByMediaType('all')" id="media-all" class="radio-btn active">All</button>
+                            <button onclick="filterByMediaType('video')" id="media-video" class="radio-btn">Video</button>
+                            <button onclick="filterByMediaType('static')" id="media-static" class="radio-btn">Static</button>
+                        </div>
+                        
                         <div class="input-group">
                             <input type="text" id="search-input" placeholder="Search tags...">
                             <button onclick="searchImages()" class="icon-btn">→</button>
@@ -147,7 +154,8 @@
     <button id="bottom-ui-toggle" onclick="toggleUI()">HIDE UI</button>
 
     <div id="lightbox">
-        <img id="lightbox-img">
+        <img id="lightbox-img" style="display: none;">
+        <video id="lightbox-video" controls style="display: none; max-width: 95%; max-height: 85vh;"></video>
         <div class="lightbox-controls">
             <button class="lightbox-btn" onclick="copyLightboxImage()" title="Copy to Clipboard">
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>

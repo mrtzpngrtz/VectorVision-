@@ -29,6 +29,7 @@ This is not a commercial product. It is a personal tool built through vibecoding
 ## [▸] FEATURES
 
 *   **Native GPU Acceleration**: Uses ONNX Runtime with DirectML (Windows) or CoreML (macOS) for 5-10x faster image analysis
+*   **Video Support**: Analyzes MP4 and WebM videos by extracting and processing the first frame (requires FFmpeg)
 *   **AI Semantic Clustering**: Organizes images by visual similarity using CLIP embeddings and Self-Organizing Maps (SOM)
 *   **Library Management**: Multiple libraries with image counts, last updated timestamps, and quick switching
 *   **150+ Smart Categories**: Optimized for artistic/design/fashion photography with tags like:
@@ -74,11 +75,13 @@ This is not a commercial product. It is a personal tool built through vibecoding
 - Windows 10/11 (64-bit)
 - DirectX 12 compatible GPU (for DirectML acceleration)
 - 8GB+ RAM recommended
+- **FFmpeg** (optional, required for video support) - [Download here](https://ffmpeg.org/download.html)
 
 ### macOS
 - macOS 10.15+ (Catalina or later)
 - Apple Silicon (M1/M2/M3) or Intel with Metal support
 - 8GB+ RAM recommended
+- **FFmpeg** (optional, required for video support) - Install via Homebrew: `brew install ffmpeg`
 
 ## [↓] INSTALLATION
 
@@ -111,10 +114,10 @@ This is not a commercial product. It is a personal tool built through vibecoding
 1.  **Launch the app** with `npm start`
 2.  **Create a library:**
     -   Click "+ New Library"
-    -   Select your image folder
+    -   Select your image/video folder
     -   Enter a library name
 3.  **The app will automatically:**
-    -   Scan for supported images (.jpg, .jpeg, .png, .gif, .webp)
+    -   Scan for supported files (.jpg, .jpeg, .png, .gif, .webp, .mp4, .webm)
     -   Load cached analysis if available (instant load)
     -   Analyze new images with GPU acceleration at 5-10 images/second
     -   Show informative progress with context-aware descriptions
@@ -172,11 +175,14 @@ Compared to the browser-based version:
 *   **ONNX Runtime**: Native AI inference with GPU support (DirectML/CoreML)
 *   **CLIP (ViT-Base-Patch32)**: OpenAI's vision-language model for embeddings and zero-shot classification
 *   **Sharp**: High-performance Node.js image processing
+*   **FFmpeg**: Video frame extraction for MP4/WebM support
 *   **Self-Organizing Maps**: Unsupervised clustering for spatial layout
 
 ## [?] DOCUMENTATION
 
 - **[README_ELECTRON.md](README_ELECTRON.md)** - Detailed desktop app documentation, troubleshooting, and architecture
+- **[VIDEO_SUPPORT.md](VIDEO_SUPPORT.md)** - Video support implementation details and FFmpeg setup guide
+- **[OPTIMIZATION_NOTES.md](OPTIMIZATION_NOTES.md)** - Performance optimization and GPU acceleration details
 
 ## [⚙] BUILDING FOR DISTRIBUTION
 
@@ -233,6 +239,7 @@ This project uses the following open-source technologies:
 
 ### Additional Dependencies
 - **ml-som** - Self-Organizing Maps implementation (MIT License)
+- **fluent-ffmpeg** - FFmpeg wrapper for video processing (MIT License)
 - **axios** - Promise-based HTTP client (MIT License)
 - **uuid** - RFC4122 UUID generation (MIT License)
 
