@@ -60,26 +60,7 @@ let libraries = [];
 let currentLibrary = null;
 let pendingLibraryAction = null;
 let selectedLibraryId = null;
-let currentAspectRatio = 1;
-
-function setAspectRatio(ratio) {
-    currentAspectRatio = ratio;
-    
-    // Update UI buttons
-    document.querySelectorAll('[id^="ratio-"]').forEach(btn => btn.classList.remove('active'));
-    let btnId;
-    if (ratio === 1) btnId = 'ratio-1';
-    else if (ratio === 1.5) btnId = 'ratio-1.5';
-    else if (ratio === 0.666) btnId = 'ratio-0.66';
-    
-    if (btnId) {
-        const btn = document.getElementById(btnId);
-        if (btn) btn.classList.add('active');
-    }
-    
-    // Re-render
-    displayImages(images);
-}
+let activeColorFilter = null;
 
 function setLoading(active) {
     const loadingOverlay = document.getElementById('loading-overlay');
@@ -1090,17 +1071,6 @@ function displayImages(imageList) {
     let cellW = 4000 / (maxX + 2); 
     let cellH = 4000 / (maxY + 2); 
     
-    // Apply aspect ratio adjustments
-    if (!is3D) {
-        if (currentAspectRatio > 1) {
-            // Landscape: Increase width relative to height
-            cellW = cellH * currentAspectRatio;
-        } else if (currentAspectRatio < 1) {
-            // Portrait: Increase height relative to width
-            cellH = cellW / currentAspectRatio;
-        }
-    }
-    
     const cellD = 4000 / (maxZ + 2);
     mapContainer.style.backgroundSize = `${cellW}px ${cellH}px`;
     const fragment = document.createDocumentFragment();
@@ -1110,11 +1080,6 @@ function displayImages(imageList) {
         el.className = 'image-node'; el.id = `node-${index}`;
         const sizeW = is3D ? 80 : cellW; 
         const sizeH = is3D ? 80 : cellH;
-        
-        // Ensure inner image maintains ratio
-        // if (!is3D) {
-        //    el.style.aspectRatio = `${currentAspectRatio}`;
-        // }
         
         el.style.width = `${sizeW}px`; el.style.height = `${sizeH}px`;
         const x = c.x * cellW; const y = c.y * cellH; const z = c.z * cellD;
@@ -1262,6 +1227,7 @@ function displayImages(imageList) {
     
     // Update word cloud after displaying images
     updateWordCloud();
+    updateColorFilter();
 }
 
 let isHighlighting = false;
@@ -1300,6 +1266,7 @@ function clearHighlight() {
 
 function clearAll() {
     document.getElementById('search-input').value = '';
+    activeColorFilter = null;
     
     // Clear active tag display
     const tagDisplay = document.getElementById('active-tag-display');
@@ -1315,6 +1282,7 @@ function clearAll() {
 
 async function searchImages() {
     const keyword = document.getElementById('search-input').value.toLowerCase().trim();
+    activeColorFilter = null; // Clear color filter when searching text
     
     // Update active tag display
     const tagDisplay = document.getElementById('active-tag-display');
@@ -1943,56 +1911,53 @@ async function loadSelectedLibrary() {
 }
 
 function renderLibrariesList() {
-    const listEl = document.getElementById('libraries-list');
+    const currentLibDisplay = document.getElementById('current-library-display');
     const selectionListEl = document.getElementById('selection-libraries-list');
     
-    // Render sidebar list
-    if (listEl) {
-        if (libraries.length === 0) {
-            listEl.innerHTML = '<div style="opacity: 0.4; font-size: 0.65rem; padding: 8px;">No saved libraries</div>';
+    // Render sidebar current library display
+    if (currentLibDisplay) {
+        if (!currentLibrary) {
+            currentLibDisplay.innerHTML = `
+                <div class="library-info" style="padding:12px; opacity:0.6;">
+                    <div class="library-name">No Library Selected</div>
+                    <div class="library-path" style="font-size:0.65rem;">Click "Open Library" to load</div>
+                </div>
+            `;
+            currentLibDisplay.className = 'library-item';
         } else {
-            listEl.innerHTML = '';
-            libraries.forEach((lib) => {
-                const item = document.createElement('div');
-                item.className = 'library-item';
-                if (currentLibrary && currentLibrary.id === lib.id) {
-                    item.classList.add('active');
-                }
+            // Calculate time ago
+            let lastUpdatedText = 'Never';
+            if (currentLibrary.lastUpdated) {
+                const date = new Date(currentLibrary.lastUpdated);
+                const now = new Date();
+                const diffMs = now - date;
+                const diffMins = Math.floor(diffMs / 60000);
+                const diffHours = Math.floor(diffMs / 3600000);
+                const diffDays = Math.floor(diffMs / 86400000);
                 
-                let lastUpdatedText = 'Never';
-                if (lib.lastUpdated) {
-                    const date = new Date(lib.lastUpdated);
-                    const now = new Date();
-                    const diffMs = now - date;
-                    const diffMins = Math.floor(diffMs / 60000);
-                    const diffHours = Math.floor(diffMs / 3600000);
-                    const diffDays = Math.floor(diffMs / 86400000);
-                    
-                    if (diffMins < 1) lastUpdatedText = 'Just now';
-                    else if (diffMins < 60) lastUpdatedText = `${diffMins}m ago`;
-                    else if (diffHours < 24) lastUpdatedText = `${diffHours}h ago`;
-                    else if (diffDays < 7) lastUpdatedText = `${diffDays}d ago`;
-                    else lastUpdatedText = date.toLocaleDateString();
-                }
-                
-                const imageCount = lib.imageCount || 0;
-                const imageCountText = imageCount === 1 ? '1 image' : `${imageCount} images`;
-                
-                item.innerHTML = `
-                    <div class="library-info" onclick="switchLibrary('${lib.id}')">
-                        <div class="library-name">${lib.name}</div>
-                        <div class="library-path">${lib.path}</div>
-                        <div class="library-updated">${imageCountText} • Updated: ${lastUpdatedText}</div>
-                    </div>
-                    <div class="library-actions">
-                        <button class="library-btn" onclick="rescanLibrary('${lib.id}')" title="Force Rescan">⟳</button>
-                        <button class="library-btn" onclick="renameLibrary('${lib.id}')" title="Rename">✎</button>
-                        <button class="library-btn delete-btn" onclick="deleteLibrary('${lib.id}')" title="Delete">✕</button>
-                    </div>
-                `;
-                listEl.appendChild(item);
-            });
+                if (diffMins < 1) lastUpdatedText = 'Just now';
+                else if (diffMins < 60) lastUpdatedText = `${diffMins}m ago`;
+                else if (diffHours < 24) lastUpdatedText = `${diffHours}h ago`;
+                else if (diffDays < 7) lastUpdatedText = `${diffDays}d ago`;
+                else lastUpdatedText = date.toLocaleDateString();
+            }
+            
+            const imageCount = currentLibrary.imageCount || 0;
+            const imageCountText = imageCount === 1 ? '1 image' : `${imageCount} images`;
+
+            currentLibDisplay.innerHTML = `
+                <div class="library-info" style="padding:12px;">
+                    <div class="library-name" style="font-weight:700;">${currentLibrary.name}</div>
+                    <div class="library-path" style="font-size:0.65rem; opacity:0.6; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${currentLibrary.path}</div>
+                    <div class="library-updated" style="font-size:0.6rem; opacity:0.4; margin-top:4px;">${imageCountText} • Updated: ${lastUpdatedText}</div>
+                </div>
+            `;
+            currentLibDisplay.className = 'library-item active';
         }
+        currentLibDisplay.style.marginBottom = '8px';
+        currentLibDisplay.style.cursor = 'default';
+        currentLibDisplay.style.border = '1px solid var(--border)';
+        currentLibDisplay.style.background = 'rgba(255, 255, 255, 0.02)';
     }
 
     // Render selection modal list
@@ -2196,6 +2161,206 @@ async function switchLibrary(libraryId) {
 }
 
 // Generate word cloud from current library's tags
+function updateColorFilter() {
+    const colorSection = document.getElementById('color-filter-section');
+    const colorPalette = document.getElementById('color-palette');
+    
+    if (!currentLibrary || images.length === 0) {
+        if (colorSection) colorSection.style.display = 'none';
+        return;
+    }
+    
+    // Quantize and count colors
+    const colorCounts = {};
+    const colorValues = {}; // Store representative [r,g,b]
+    
+    images.forEach(img => {
+        if (img.color) {
+            // Quantize to 40-step buckets
+            const step = 40; 
+            const r = Math.floor(img.color[0] / step) * step + step/2;
+            const g = Math.floor(img.color[1] / step) * step + step/2;
+            const b = Math.floor(img.color[2] / step) * step + step/2;
+            const key = `${r},${g},${b}`;
+            
+            colorCounts[key] = (colorCounts[key] || 0) + 1;
+            colorValues[key] = [r, g, b];
+        }
+    });
+    
+    // Sort by frequency
+    const sortedColors = Object.entries(colorCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 15); // Top 15
+        
+    if (sortedColors.length === 0) {
+        if (colorSection) colorSection.style.display = 'none';
+        return;
+    }
+    
+    if (colorSection) colorSection.style.display = 'block';
+    
+    if (colorPalette) {
+        colorPalette.innerHTML = '';
+        sortedColors.forEach(([key, count]) => {
+            const rgb = colorValues[key];
+            const swatch = document.createElement('div');
+            swatch.className = 'palette-swatch';
+            swatch.style.background = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+            swatch.style.width = '24px';
+            swatch.style.height = '24px';
+            swatch.style.margin = '2px';
+            swatch.style.cursor = 'pointer';
+            swatch.style.border = '1px solid rgba(255,255,255,0.2)';
+            swatch.title = `${count} images`;
+            
+            if (activeColorFilter && 
+                Math.abs(activeColorFilter[0] - rgb[0]) < 1 &&
+                Math.abs(activeColorFilter[1] - rgb[1]) < 1 &&
+                Math.abs(activeColorFilter[2] - rgb[2]) < 1) {
+                swatch.style.border = '2px solid #fff';
+                swatch.style.transform = 'scale(1.2)';
+            }
+            
+            swatch.onclick = () => filterByColor(rgb);
+            
+            colorPalette.appendChild(swatch);
+        });
+    }
+}
+
+async function filterByColor(targetColor) {
+    // Clear text search
+    document.getElementById('search-input').value = '';
+    
+    // Toggle off
+    if (activeColorFilter && 
+        targetColor[0] === activeColorFilter[0] && 
+        targetColor[1] === activeColorFilter[1] && 
+        targetColor[2] === activeColorFilter[2]) {
+        activeColorFilter = null;
+        clearAll();
+        return;
+    }
+    
+    activeColorFilter = targetColor;
+    updateColorFilter(); // Update selection UI
+    
+    // Update active tag display
+    const tagDisplay = document.getElementById('active-tag-display');
+    if (tagDisplay) {
+        tagDisplay.innerHTML = '';
+        const span = document.createElement('span');
+        span.id = 'active-tag-text';
+        span.innerHTML = `COLOR <span style="display:inline-block; width:1em; height:1em; background:rgb(${targetColor.join(',')}); vertical-align:middle; border:1px solid #fff; margin-left:5px; border-radius:50%;"></span>`;
+        tagDisplay.appendChild(span);
+        
+        const closeBtn = document.createElement('div');
+        closeBtn.id = 'active-tag-close';
+        closeBtn.textContent = '✕';
+        closeBtn.onclick = clearAll;
+        tagDisplay.appendChild(closeBtn);
+        
+        tagDisplay.classList.add('visible');
+    }
+    
+    statusDiv.textContent = 'FILTERING BY COLOR...';
+    setLoading(true);
+    
+    const matchedImages = [];
+    const threshold = 100; // Distance threshold in RGB
+    
+    images.forEach((img, i) => {
+        if (!img.color) return;
+        const dist = Math.sqrt(
+            Math.pow(img.color[0] - targetColor[0], 2) +
+            Math.pow(img.color[1] - targetColor[1], 2) +
+            Math.pow(img.color[2] - targetColor[2], 2)
+        );
+        if (dist < threshold) {
+            matchedImages.push({ ...img, originalIndex: i });
+        }
+    });
+    
+    if (matchedImages.length === 0) {
+        statusDiv.textContent = 'NO_MATCHES';
+        setLoading(false);
+        return;
+    }
+    
+    statusDiv.textContent = `CLUSTERING: ${matchedImages.length} MATCHES`;
+    
+    // Cluster the matches similar to searchImages
+    const matchedVectors = matchedImages.filter(img => img.features).map(img => img.features);
+    
+    if (matchedVectors.length > 0 && matchedVectors.length > 1) {
+        const gridSize = Math.ceil(Math.sqrt(matchedVectors.length) * 1.5);
+        const tempSom = new SimpleSOM(gridSize, gridSize, 1, matchedVectors[0].length, Math.min(500, matchedVectors.length * 10));
+        await tempSom.trainAsync(matchedVectors);
+        matchedImages.forEach((img) => {
+            if (img.features) {
+                const pos = tempSom.getBMU(img.features);
+                img.xSearch = pos.x; img.ySearch = pos.y;
+            }
+        });
+    } else {
+        matchedImages.forEach(img => { img.xSearch = 0; img.ySearch = 0; });
+    }
+    
+    // Display
+    mapContainer.innerHTML = '';
+    imageNodeElements = [];
+    currentVisibleImages = matchedImages;
+    
+    const gridSize = Math.ceil(Math.sqrt(matchedImages.length) * 1.5);
+    const cellW = 4000 / (gridSize + 2);
+    const cellH = 4000 / (gridSize + 2);
+    const fragment = document.createDocumentFragment();
+    
+    matchedImages.forEach((img, index) => {
+        const el = document.createElement('div');
+        el.className = 'image-node';
+        el.id = `node-${img.originalIndex}`;
+        el.style.width = `${cellW}px`; el.style.height = `${cellH}px`;
+        const x = (img.xSearch || 0) * cellW;
+        const y = (img.ySearch || 0) * cellH;
+        el.style.setProperty('--tx', `${x}px`); el.style.setProperty('--ty', `${y}px`); el.style.setProperty('--tz', '0px');
+        el._tz_val = 0; el._visible = true;
+        
+        el.onmouseenter = () => {
+            let content = `ID: ${img.name.toUpperCase()}<br>`;
+            if (img.keywords) content += `TAGS: ${img.keywords.map(k=>k.className.toUpperCase()).join(', ')}<br>`;
+            content += `POS: [${Math.round(x)},${Math.round(y)}]`;
+            semanticInfoDiv.innerHTML = content;
+            el.classList.add('is-hovered');
+            
+            // Preview Image
+            const previewImg = document.getElementById('preview-img');
+            const previewPlaceholder = document.getElementById('preview-placeholder');
+            if (previewImg && previewPlaceholder) {
+                const imageUrl = isElectron ? `file:///${img.path.replace(/\\/g, '/')}` : (img.url || img.thumbUrl);
+                const tempImg = new Image();
+                tempImg.onload = () => { previewImg.src = imageUrl; previewImg.style.display = 'block'; previewPlaceholder.style.display = 'none'; };
+                tempImg.src = imageUrl;
+            }
+        };
+        el.onmouseleave = () => { el.classList.remove('is-hovered'); semanticInfoDiv.textContent = 'Hover over an image to see details...'; };
+        el.ondblclick = (e) => { e.stopPropagation(); showLightbox(index); };
+        
+        const imageElement = document.createElement('img');
+        if (isElectron && !img.thumbnailData) {
+            imageElement.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150"%3E%3Crect fill="%23222" width="150" height="150"/%3E%3C/svg%3E';
+            window.electronAPI.getImageData(img.path).then(result => { img.thumbnailData = result.dataUrl; imageElement.src = result.dataUrl; });
+        } else if (isElectron) { imageElement.src = img.thumbnailData; } else { imageElement.src = img.thumbUrl; }
+        imageElement.loading = 'lazy';
+        el.appendChild(imageElement); fragment.appendChild(el); imageNodeElements.push(el);
+    });
+    mapContainer.appendChild(fragment); mapContainer.className = '';
+    statusDiv.textContent = `FILTERED: ${matchedImages.length}`;
+    setLoading(false);
+    centerMap();
+}
+
 function updateWordCloud() {
     const wordcloudSection = document.getElementById('library-wordcloud-section');
     const wordcloudEl = document.getElementById('library-wordcloud');

@@ -209,11 +209,31 @@ Renderer Process (Chromium)
 
 ## [©] LICENSE
 
-MIT
+This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
 
-## [★] CREDITS
+**What this means:**
+- ✓ Commercial use allowed
+- ✓ Modification allowed
+- ✓ Distribution allowed
+- ✓ Private use allowed
+- ✓ Attribution required
 
-- **CLIP**: OpenAI's Contrastive Language-Image Pre-training
-- **ONNX Runtime**: Microsoft's cross-platform ML inference engine
-- **Electron**: Cross-platform desktop applications
-- **Sharp**: High-performance Node.js image processing
+Copyright (c) 2026 Moritz Pongratz
+
+## [★] CREDITS & THIRD-PARTY LICENSES
+
+This project uses the following open-source technologies:
+
+### Core Technologies
+- **[CLIP (ViT-Base-Patch32)](https://github.com/openai/CLIP)** - OpenAI's vision-language model for embeddings and zero-shot classification (MIT License)
+- **[ONNX Runtime](https://github.com/microsoft/onnxruntime)** - Microsoft's cross-platform ML inference engine with DirectML/CoreML support (MIT License)
+- **[Electron](https://www.electronjs.org/)** - Cross-platform desktop application framework (MIT License)
+- **[Sharp](https://github.com/lovell/sharp)** - High-performance Node.js image processing library (Apache-2.0 License)
+- **[Transformers.js](https://github.com/xenova/transformers.js)** - State-of-the-art machine learning for the web (Apache-2.0 License)
+
+### Additional Dependencies
+- **ml-som** - Self-Organizing Maps implementation (MIT License)
+- **axios** - Promise-based HTTP client (MIT License)
+- **uuid** - RFC4122 UUID generation (MIT License)
+
+All third-party licenses are compatible with the MIT License used by this project. Full license texts for each dependency can be found in their respective repositories or in the `node_modules` directory after installation.

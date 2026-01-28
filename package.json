@@ -3,6 +3,12 @@
   "version": "1.0.0",
   "description": "Visual image exploration and organization tool",
   "main": "electron-main.js",
+  "license": "MIT",
+  "author": "Moritz Pongratz",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mrtzpngrtz/VectorVision.git"
+  },
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev"

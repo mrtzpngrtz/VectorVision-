@@ -1,14 +1,31 @@
 :root {
-    --bg: #000000;
-    --fg: #ffffff;
+    --bg: #050505;
+    --fg: #f0f0f0;
+    
+    /* Surface hierarchy */
+    --surface-0: #080808;
+    --surface-1: #121212;
+    --surface-2: #1c1c1c;
+    --surface-3: #262626;
+    --surface-4: #333333;
+    
+    /* Borders */
     --border: #2a2a2a;
     --border-light: #3a3a3a;
+    --border-dark: #1a1a1a;
+    
+    /* Accents */
     --accent: #ffffff;
     --accent-fg: #000000;
     --grid-dot: #1a1a1a;
-    --hover-bg: rgba(255, 255, 255, 0.05);
+    
+    /* States */
+    --hover-bg: rgba(255, 255, 255, 0.08);
+    --active-bg: rgba(255, 255, 255, 0.15);
+    
+    /* Layout */
     --sidebar-width: 300px;
-    --sidebar-bg: rgba(0, 0, 0, 0.95);
+    --sidebar-bg: var(--surface-1);
 }
 
 * {
@@ -27,9 +44,9 @@ body {
 }
 
 #app {
-    display: flex;
-    flex-direction: row; /* Sidebar + Main */
+    position: relative;
     height: 100vh;
+    overflow: hidden;
 }
 
 /* ============================================
@@ -37,6 +54,8 @@ body {
    ============================================ */
 
 .sidebar {
+    position: absolute;
+    top: 0;
     width: var(--sidebar-width);
     height: 100vh;
     background: var(--sidebar-bg);
@@ -46,32 +65,33 @@ body {
     overflow: hidden;
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s ease;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     flex-shrink: 0;
     padding-bottom: 50px; /* Make space for fixed toggle button */
 }
 
 #sidebar-left {
+    left: 0;
     border-right: 1px solid var(--border);
 }
 
 #sidebar-right {
+    right: 0;
     border-left: 1px solid var(--border);
 }
 
 body.ui-hidden #sidebar-left {
     transform: translateX(-100%);
-    width: 0; /* Helps main expand smoothly */
 }
 
 body.ui-hidden #sidebar-right {
     transform: translateX(100%);
-    width: 0;
 }
 
 .sidebar-header {
     padding: 20px;
     border-bottom: 1px solid var(--border);
+    background: var(--surface-0);
     flex-shrink: 0;
     display: flex;
     justify-content: space-between;
@@ -103,7 +123,7 @@ body.ui-hidden #sidebar-right {
     padding: 20px;
     border-top: 1px solid var(--border);
     flex-shrink: 0;
-    background: var(--sidebar-bg);
+    background: var(--surface-0);
 }
 
 .app-title {
@@ -124,13 +144,13 @@ body.ui-hidden #sidebar-right {
 }
 
 .section-label {
-    font-size: 0.625rem;
+    font-size: 0.85rem;
     font-weight: 700;
     font-family: 'Roboto Mono', monospace;
     text-transform: uppercase;
     letter-spacing: 1.5px;
     color: var(--fg);
-    opacity: 0.5;
+    opacity: 0.8;
     margin-bottom: 8px;
     cursor: pointer;
     user-select: none;
@@ -158,7 +178,7 @@ body.ui-hidden #sidebar-right {
     display: flex;
     flex-direction: column;
     border: 1px solid var(--border);
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--surface-2);
 }
 
 .radio-group-vertical .radio-btn {
@@ -193,7 +213,7 @@ body.ui-hidden #sidebar-right {
 .input-group {
     display: flex;
     border: 1px solid var(--border);
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--surface-2);
 }
 
 .input-group input {
@@ -209,7 +229,7 @@ body.ui-hidden #sidebar-right {
 
 .input-group input:focus {
     outline: none;
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--surface-3);
 }
 
 .input-group .icon-btn {
@@ -233,13 +253,15 @@ body.ui-hidden #sidebar-right {
    ============================================ */
 
 #main {
-    flex: 1;
-    position: relative;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
     background: var(--bg);
     overflow: hidden;
     cursor: grab;
     perspective: 2000px;
-    height: 100vh;
 }
 
 #map-container {
@@ -300,12 +322,13 @@ body.ui-hidden #sidebar-right {
 
 .library-item {
     border: 1px solid var(--border);
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--surface-2);
     margin-bottom: 4px;
 }
 
 .library-item:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--surface-3);
+    border-color: var(--border-light);
 }
 
 .library-item.active {
@@ -375,7 +398,6 @@ body.ui-hidden #sidebar-right {
 #library-wordcloud-section {
     padding: 20px;
     border-bottom: 1px solid var(--border);
-    max-height: 300px;
     overflow-y: auto;
 }
 
@@ -389,7 +411,7 @@ body.ui-hidden #sidebar-right {
     font-family: 'Roboto Mono', monospace;
     font-size: 0.6875rem;
     padding: 4px 8px;
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--surface-2);
     border: 1px solid transparent;
     cursor: pointer;
     transition: all 0.2s;
@@ -397,8 +419,8 @@ body.ui-hidden #sidebar-right {
 }
 
 .wordcloud-tag:hover {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: var(--border-light);
+    background: var(--surface-3);
+    border-color: var(--fg);
 }
 
 .wordcloud-tag.active {
@@ -432,6 +454,17 @@ body.ui-hidden #sidebar-right {
     background: #000;
 }
 
+#preview-container {
+    width: 100%;
+    aspect-ratio: 1;
+    background: var(--surface-0);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
 /* ============================================
    OVERLAYS & INFO DISPLAYS
    ============================================ */
@@ -446,15 +479,24 @@ body.ui-hidden #sidebar-right {
     pointer-events: none;
     font-weight: 500;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+    transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 #fps-counter {
     top: 16px;
-    right: 16px;
+    right: 320px;
 }
 
 #zoom-info {
     top: 16px;
+    right: 384px;
+}
+
+body.ui-hidden #fps-counter {
+    right: 16px;
+}
+
+body.ui-hidden #zoom-info {
     right: 80px;
 }
 
@@ -465,8 +507,8 @@ body.ui-hidden #sidebar-right {
 #active-tag-display {
     position: absolute;
     bottom: 40px;
-    left: 50%;
-    transform: translateX(-50%);
+    left: 320px; /* Align right to left sidebar (300px + 20px) */
+    transform: none; /* Remove centering */
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
     font-weight: 700;
     font-size: 4rem; /* Big */
@@ -475,12 +517,19 @@ body.ui-hidden #sidebar-right {
     pointer-events: none;
     text-transform: uppercase;
     text-shadow: 0 2px 10px rgba(0,0,0,0.5);
-    transition: opacity 0.3s;
+    transition: opacity 0.3s, left 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* Add left transition */
     z-index: 100;
-    white-space: nowrap;
+    white-space: normal; /* Allow wrapping */
     display: flex;
-    align-items: center;
+    align-items: flex-end; /* Align bottom */
     gap: 20px;
+    max-width: 50vw; /* Limit width to force wrap if needed */
+    line-height: 0.9; /* Tighter leading for multi-line */
+    text-align: left;
+}
+
+body.ui-hidden #active-tag-display {
+    left: 40px;
 }
 
 #active-tag-display.visible {
@@ -674,10 +723,11 @@ body.ui-hidden #sidebar-right {
 }
 
 .modal-content {
-    background: #000;
+    background: var(--surface-1);
     border: 1px solid var(--border);
     padding: 30px;
     min-width: 350px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.5);
 }
 
 .modal-content h3 {
@@ -719,7 +769,7 @@ body.ui-hidden #sidebar-right {
 }
 
 .secondary-btn {
-    background: transparent;
+    background: var(--surface-2);
     color: var(--fg);
     border: 1px solid var(--border);
     padding: 10px;
@@ -730,7 +780,8 @@ body.ui-hidden #sidebar-right {
 }
 
 .secondary-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--surface-3);
+    border-color: var(--fg);
 }
 
 .primary-btn.compact {
@@ -851,6 +902,79 @@ body.ui-hidden #sidebar-right {
 
 .control-desc {
     opacity: 0.7;
+}
+
+.popup-section {
+    margin-top: 30px;
+    margin-bottom: 30px;
+}
+
+.popup-section h4 {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 10px;
+    margin-top: 0;
+    margin-bottom: 15px;
+    opacity: 0.6;
+    letter-spacing: 1px;
+}
+
+.tech-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+
+.tech-item {
+    background: var(--surface-0);
+    border: 1px solid var(--border);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.tech-item strong {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.tech-item span {
+    font-size: 0.7rem;
+    opacity: 0.7;
+    line-height: 1.4;
+}
+
+.function-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.function-item {
+    background: var(--surface-0);
+    border: 1px solid var(--border);
+    padding: 15px;
+}
+
+.function-item strong {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 8px;
+    letter-spacing: 1px;
+}
+
+.function-item p {
+    font-size: 0.75rem;
+    line-height: 1.5;
+    margin: 0;
+    opacity: 0.8;
 }
 
 .popup-meta {
@@ -1080,11 +1204,11 @@ body.ui-hidden #bottom-ui-toggle {
 }
 
 .selection-scroll-area {
-    max-height: 400px;
+    max-height: 280px;
     overflow-y: auto;
     margin-bottom: 20px;
     border: 1px solid var(--border);
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--surface-0);
 }
 
 .selection-list {
@@ -1093,7 +1217,7 @@ body.ui-hidden #bottom-ui-toggle {
 }
 
 .selection-item {
-    padding: 15px;
+    padding: 10px 15px;
     border-bottom: 1px solid var(--border);
     cursor: pointer;
     transition: background 0.2s;
@@ -1107,7 +1231,7 @@ body.ui-hidden #bottom-ui-toggle {
 }
 
 .selection-item:hover {
-    background: var(--hover-bg);
+    background: var(--surface-2);
 }
 
 .selection-item.active {
@@ -1118,18 +1242,18 @@ body.ui-hidden #bottom-ui-toggle {
 .selection-item-info {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 1px;
 }
 
 .selection-item-name {
     font-family: 'Roboto Mono', monospace;
     font-weight: 700;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     margin-bottom: 2px;
 }
 
 .selection-item-path {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     opacity: 0.5;
     font-family: 'Roboto Mono', monospace;
     white-space: nowrap;

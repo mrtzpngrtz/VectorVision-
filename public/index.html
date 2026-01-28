@@ -13,7 +13,6 @@
         <div id="sidebar-left" class="sidebar">
             <div class="sidebar-header">
                 <h1 class="app-title">VECTOR VISION</h1>
-                <div class="close-sidebar-btn" onclick="toggleUI()" title="Close Sidebar">✕</div>
             </div>
 
             <div class="sidebar-scroll-area">
@@ -23,8 +22,8 @@
                         LIBRARIES <span class="chevron">▼</span>
                     </div>
                     <div id="libraries-content" class="section-content">
-                        <div id="libraries-list"></div>
-                        <button onclick="createNewLibrary()" class="primary-btn compact">+ New Library</button>
+                        <div id="current-library-display"></div>
+                        <button onclick="showLibrarySelection()" class="primary-btn compact">Open Library</button>
                     </div>
                 </div>
 
@@ -39,16 +38,6 @@
                         
                         <div id="view-presets" style="display:none;">
                             <button id="auto-move-toggle" onclick="toggleAutoMove()" class="secondary-btn compact" style="width:100%">Auto Drift: ON</button>
-                        </div>
-                        
-                        <!-- Aspect Ratio Control -->
-                        <div style="margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px;">
-                            <div class="section-label" style="margin-bottom: 6px;">GRID RATIO</div>
-                            <div class="radio-group-vertical">
-                                <button onclick="setAspectRatio(1)" id="ratio-1" class="radio-btn active">1:1 Square</button>
-                                <button onclick="setAspectRatio(1.5)" id="ratio-1.5" class="radio-btn">3:2 Landscape</button>
-                                <button onclick="setAspectRatio(0.666)" id="ratio-0.66" class="radio-btn">2:3 Portrait</button>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -74,7 +63,6 @@
 
         <!-- MAIN VIEW -->
         <div id="main">
-            <div class="ui-toggle-btn" onclick="toggleUI()" title="Show UI">☰</div>
             
             <div id="map-container"></div>
             
@@ -116,27 +104,26 @@
         <div id="sidebar-right" class="sidebar">
             <div class="sidebar-header">
                 <div class="section-label" style="margin:0; opacity: 1;">INSPECTOR</div>
-                <div class="close-sidebar-btn" onclick="toggleUI()" title="Close Sidebar">✕</div>
+            </div>
+
+            <!-- PREVIEW -->
+            <div class="sidebar-section">
+                <div class="section-label">PREVIEW</div>
+                <div id="preview-container">
+                    <img id="preview-img" style="max-width: 100%; max-height: 100%; display: none; object-fit: contain;">
+                    <span id="preview-placeholder" style="opacity: 0.3; font-size: 0.7rem; font-family: monospace;">Hover image</span>
+                </div>
+            </div>
+
+            <!-- INFO -->
+            <div class="sidebar-section">
+                <div class="section-label">INFO</div>
+                <div id="semantic-info" class="info-content">Hover over an image to see details...</div>
             </div>
 
             <div class="sidebar-scroll-area">
-                <!-- PREVIEW -->
-                <div class="sidebar-section">
-                    <div class="section-label">PREVIEW</div>
-                    <div id="preview-container" style="width: 100%; aspect-ratio: 1; background: rgba(255,255,255,0.02); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; overflow: hidden;">
-                        <img id="preview-img" style="max-width: 100%; max-height: 100%; display: none; object-fit: contain;">
-                        <span id="preview-placeholder" style="opacity: 0.3; font-size: 0.7rem; font-family: monospace;">Hover image</span>
-                    </div>
-                </div>
-
-                <!-- INFO -->
-                <div class="sidebar-section">
-                    <div class="section-label">INFO</div>
-                    <div id="semantic-info" class="info-content">Hover over an image to see details...</div>
-                </div>
-
                 <!-- FILTER -->
-                <div class="sidebar-section">
+                <div class="sidebar-section" style="border-bottom: none;">
                     <div class="section-label">SEARCH & FILTER</div>
                     <div class="section-content">
                         <div class="input-group">
@@ -145,6 +132,11 @@
                             <button onclick="clearAll()" class="icon-btn">✕</button>
                         </div>
                         
+                        <div id="color-filter-section" style="margin-top: 10px; display: none;">
+                            <div class="section-label" style="font-size: 0.7rem; opacity: 0.6; margin-bottom: 5px;">TOP COLORS</div>
+                            <div id="color-palette" class="palette-container" style="flex-wrap: wrap;"></div>
+                        </div>
+
                         <div id="library-wordcloud-section" style="padding: 0; border: none; margin-top: 10px;">
                             <div id="library-wordcloud" class="library-wordcloud"></div>
                         </div>
@@ -152,11 +144,6 @@
                 </div>
             </div>
 
-            <div class="sidebar-footer">
-                <div id="system-specs" class="specs-compact">
-                    <span id="hw-accel-status">READY</span>
-                </div>
-            </div>
         </div>
     </div>
 
@@ -223,16 +210,19 @@
     <div id="start-popup" style="display: none;">
         <div class="modal-content start-popup-content">
             <h3>Welcome to VectorVision</h3>
-            <div class="start-popup-body">
-                <p class="intro-text">VectorVision organizes your images using AI to find visual similarities.</p>
+            <div class="start-popup-body" style="max-height: 70vh; overflow-y: auto;">
+                <p class="intro-text">VectorVision is a high-performance desktop application that organizes images using AI to find visual similarities and semantic relationships.</p>
                 
                 <div class="popup-columns">
                     <div class="popup-column">
-                        <h4>Features</h4>
+                        <h4>Core Features</h4>
                         <ul class="feature-list">
-                            <li><strong>Connect</strong> local folders as libraries</li>
-                            <li><strong>Explore</strong> in 2D or 3D space</li>
-                            <li><strong>Filter</strong> by AI tags & visual properties</li>
+                            <li><strong>AI Semantic Clustering</strong> – Organizes images by visual similarity using CLIP embeddings and Self-Organizing Maps</li>
+                            <li><strong>GPU-Accelerated Analysis</strong> – Native DirectML (Windows) or CoreML (macOS) for 5-10x faster processing</li>
+                            <li><strong>Multi-Dimensional Sorting</strong> – View by semantic similarity, color spectrum, lightness, or grid</li>
+                            <li><strong>150+ Smart Categories</strong> – Zero-shot classification optimized for artistic/design/fashion photography</li>
+                            <li><strong>Semantic Search</strong> – Filter by keywords with automatic re-clustering of results</li>
+                            <li><strong>100% Private</strong> – All AI analysis happens locally on your machine, no cloud or API keys required</li>
                         </ul>
                     </div>
                     
@@ -256,21 +246,85 @@
                                 <span class="control-desc">Lightbox</span>
                             </div>
                             <div class="control-row">
+                                <span class="control-key">Shift+Hover</span>
+                                <span class="control-desc">Show Similar</span>
+                            </div>
+                            <div class="control-row">
                                 <span class="control-key">Space</span>
                                 <span class="control-desc">Quick View</span>
                             </div>
+                            <div class="control-row">
+                                <span class="control-key">ESC</span>
+                                <span class="control-desc">Clear Filters</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="popup-section">
+                    <h4>Technology Stack</h4>
+                    <div class="tech-grid">
+                        <div class="tech-item">
+                            <strong>Electron 28</strong>
+                            <span>Cross-platform desktop framework</span>
+                        </div>
+                        <div class="tech-item">
+                            <strong>ONNX Runtime</strong>
+                            <span>Native AI inference with DirectML/CoreML GPU support</span>
+                        </div>
+                        <div class="tech-item">
+                            <strong>CLIP (ViT-Base-Patch32)</strong>
+                            <span>OpenAI's vision-language model for image embeddings & zero-shot classification</span>
+                        </div>
+                        <div class="tech-item">
+                            <strong>Self-Organizing Maps</strong>
+                            <span>Unsupervised clustering algorithm for spatial layout in 2D/3D</span>
+                        </div>
+                        <div class="tech-item">
+                            <strong>Sharp</strong>
+                            <span>High-performance Node.js image processing for thumbnails</span>
+                        </div>
+                        <div class="tech-item">
+                            <strong>Canvas Renderer</strong>
+                            <span>Custom WebGL-free rendering with viewport culling for 10,000+ images</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="popup-section">
+                    <h4>How It Works</h4>
+                    <div class="function-list">
+                        <div class="function-item">
+                            <strong>1. Image Analysis</strong>
+                            <p>Each image is processed through the CLIP vision model to extract a 512-dimensional feature vector representing its visual content. Simultaneously, color analysis extracts dominant colors and palettes.</p>
+                        </div>
+                        <div class="function-item">
+                            <strong>2. Zero-Shot Classification</strong>
+                            <p>Images are classified against 150+ predefined categories (e.g., "monochrome", "geometric pattern", "fashion") without training, using CLIP's language-vision alignment.</p>
+                        </div>
+                        <div class="function-item">
+                            <strong>3. Semantic Clustering</strong>
+                            <p>Self-Organizing Maps train on the feature vectors to arrange images spatially—similar images cluster together in 2D grids or 3D space, creating an explorable semantic landscape.</p>
+                        </div>
+                        <div class="function-item">
+                            <strong>4. Persistent Caching</strong>
+                            <p>Analysis results are cached per library for instant loading. Models (~600MB) are downloaded once and reused across sessions.</p>
+                        </div>
+                        <div class="function-item">
+                            <strong>5. Real-Time Filtering</strong>
+                            <p>Search queries trigger re-clustering of matched images, maintaining semantic relationships within filtered results.</p>
                         </div>
                     </div>
                 </div>
                 
                 <div class="popup-meta">
-                    <p class="small-text">All analysis happens locally on your GPU. No cloud.</p>
+                    <p class="small-text">All analysis happens locally using your GPU. No cloud, no tracking, no API keys.</p>
                     <p class="meta-info">
                         Version Alpha 0.9 • Created by Moritz Pongratz<br>
                         <a href="#" onclick="window.electronAPI.openExternal('https://aop.studio')">aop.studio</a> • 
                         <a href="#" onclick="window.electronAPI.openExternal('https://github.com/mrtzpngrtz/VectorVision')">GitHub</a>
                     </p>
-                    <p class="disclaimer">Experimental Software • GPU Heavy</p>
+                    <p class="disclaimer">Experimental Software • GPU Heavy • Requires DirectX 12 (Windows) or Metal (macOS)</p>
                 </div>
             </div>
             <div class="start-popup-footer">
