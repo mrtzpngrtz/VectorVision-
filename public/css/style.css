@@ -369,26 +369,27 @@ body.ui-hidden #sidebar-right {
 
 .library-btn {
     flex: 1;
-    padding: 8px !important;
-    font-size: 0.65rem !important;
-    background: transparent !important;
-    border: none !important;
-    border-right: 1px solid var(--border) !important;
-    color: var(--fg) !important;
+    padding: 8px;
+    font-size: 0.65rem;
+    background: transparent;
+    border: none;
+    border-right: 1px solid var(--border);
+    color: var(--fg);
     cursor: pointer;
+    transition: background 0.2s, color 0.2s;
 }
 
 .library-btn:last-child {
-    border-right: none !important;
+    border-right: none;
 }
 
 .library-btn:hover {
-    background: var(--hover-bg) !important;
+    background: var(--hover-bg);
 }
 
 .delete-btn:hover {
-    background: rgba(255, 50, 50, 0.2) !important;
-    color: #ff5555 !important;
+    background: rgba(255, 50, 50, 0.2);
+    color: #ff5555;
 }
 
 /* ============================================
@@ -1050,17 +1051,12 @@ body.ui-hidden #active-tag-display {
     cursor: pointer;
 }
 
-/* Sidebar Info */
-.sidebar-info {
-    /* Removed padding/border as it's now a section */
-}
-
 .info-content {
     font-size: 0.75rem;
     font-family: 'Roboto Mono', monospace;
     opacity: 0.8;
     line-height: 1.5;
-    min-height: 150px; /* Prevent UI jumping when content changes */
+    min-height: 150px;
     overflow-y: auto;
 }
 

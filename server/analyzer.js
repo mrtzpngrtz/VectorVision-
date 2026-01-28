@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const https = require('https');
 const axios = require('axios');
+const { CANDIDATE_LABELS, cleanLabel } = require('./labels');
 
 let visionSession = null;
 let textSession = null;
@@ -134,82 +135,10 @@ async function loadModel() {
 
 // Pre-encode all candidate labels for fast classification
 async function preEncodeTextLabels() {
-    // Expanded vocabulary for artistic/design/fashion photography
-    const candidateLabels = [
-        // Photography Styles
-        'black and white', 'monochrome', 'minimalist', 'abstract', 'conceptual', 'artistic',
-        'high contrast', 'moody', 'dramatic', 'cinematic', 'editorial', 'fine art',
-        
-        // Fashion & Style
-        'fashion', 'fashion photography', 'fashion editorial', 'model', 'portrait', 'beauty', 'style', 'clothing', 'accessories',
-        'elegant', 'sophisticated', 'contemporary', 'avant garde', 'runway', 'outfit',
-        'haute couture', 'streetwear', 'minimalist fashion', 'luxury', 'designer',
-        
-        // Graphic Design & Typography
-        'graphic design', 'typography', 'text', 'lettering', 'typeface', 'font',
-        'poster', 'logo', 'branding', 'layout', 'design elements', 'visual identity',
-        
-        // Patterns & Textures
-        'pattern', 'repeating pattern', 'geometric pattern', 'organic pattern',
-        'texture', 'striped', 'dotted', 'grid', 'lines', 'circles', 'triangles',
-        'diagonal', 'waves', 'chevron', 'abstract pattern',
-        
-        // Geometric & Shapes
-        'geometric', 'geometric shape', 'circle', 'square', 'triangle',
-        'sphere', 'cube', 'pyramid', 'hexagon', 'polygon', 'angular', 'curved',
-        
-        // Objects & Products
-        'object', 'still life', 'product', 'product photography', 'commercial',
-        'bottle', 'glass', 'container', 'tool', 'device', 'gadget', 'furniture',
-        'car', 'vehicle', 'automobile', 'bike', 'bicycle', 'motorcycle',
-        'phone', 'computer', 'camera', 'watch', 'jewelry', 'bag', 'shoe',
-        'book', 'plant', 'flower', 'food', 'drink', 'cup', 'plate',
-        
-        // Space & Composition
-        'negative space', 'empty space', 'minimal composition', 'sparse',
-        'centered', 'symmetrical', 'asymmetrical', 'balanced', 'framing',
-        
-        // Light & Shadow
-        'light', 'shadow', 'light and shadow', 'chiaroscuro', 'backlit', 'silhouette',
-        'dramatic lighting', 'soft light', 'hard light', 'rim light', 'glow', 'luminous',
-        'spotlight', 'contrast lighting',
-        
-        // Color (even for B&W collections)
-        'colorful', 'vibrant', 'muted', 'pastel', 'saturated', 'desaturated',
-        'warm tones', 'cool tones', 'gradients', 'tonal',
-        
-        // People & Portraits 
-        'person', 'face', 'silhouette', 'figure', 'body', 'hands', 'eyes',
-        'profile', 'closeup', 'headshot', 'full body', 'gesture',
-        'man', 'woman', 'male', 'female',
-        
-        // Architecture & Interiors
-        'architecture', 'building', 'interior', 'urban', 'structure',
-        'modern architecture', 'brutalism', 'industrial', 'minimal interior',
-        'concrete', 'glass', 'steel', 'facade',
-        
-        // Nature (Artistic)
-        'nature', 'organic', 'natural form', 'botanical', 'landscape',
-        'water', 'sky', 'clouds', 'mountains', 'desert', 'ocean', 'trees',
-        
-        // Urban & Street
-        'street', 'city', 'urban', 'street photography', 'skyline',
-        'alley', 'sidewalk', 'pedestrian',
-        
-        // Conceptual & Experimental
-        'surreal', 'experimental', 'conceptual art', 'abstract art',
-        'visual metaphor', 'symbolic', 'poetic', 'dreamlike', 'mysterious',
-        'projection',
-        
-        // Composition & Style
-        'composition', 'layered', 'overlapping', 'reflection', 'mirror',
-        'double exposure', 'fragmented', 'collage', 'montage'
-    ];
-    
-    // Encode all text labels once
-    cachedCandidateLabels = candidateLabels;
+    // Use labels from centralized configuration
+    cachedCandidateLabels = CANDIDATE_LABELS;
     cachedTextFeatures = await Promise.all(
-        candidateLabels.map(label => extractTextFeatures(label))
+        CANDIDATE_LABELS.map(label => extractTextFeatures(label))
     );
     
     // Debug: Check if text features are actually different
@@ -419,7 +348,7 @@ async function classifyImage(imagePath) {
         
         // Create results with probabilities
         const results = cachedCandidateLabels.map((label, i) => ({
-            label: label.replace('a photo of ', '').replace('an ', '').replace('a ', '').replace('the ', '').replace('photo', '').trim(),
+            label: cleanLabel(label),
             probability: probabilities[i],
             similarity: similarities[i]
         }));

@@ -1223,7 +1223,8 @@ function displayImages(imageList) {
         el.appendChild(imageElement); fragment.appendChild(el); imageNodeElements.push(el);
     });
     mapContainer.appendChild(fragment); mapContainer.className = is3D ? 'is-3d' : '';
-    if (!is3D) centerMap();
+    // Don't reset view when changing sorting - preserve user's current position/zoom
+    // if (!is3D) centerMap();
     
     // Update word cloud after displaying images
     updateWordCloud();
@@ -2252,7 +2253,12 @@ async function filterByColor(targetColor) {
         tagDisplay.innerHTML = '';
         const span = document.createElement('span');
         span.id = 'active-tag-text';
-        span.innerHTML = `COLOR <span style="display:inline-block; width:1em; height:1em; background:rgb(${targetColor.join(',')}); vertical-align:middle; border:1px solid #fff; margin-left:5px; border-radius:50%;"></span>`;
+        span.textContent = 'COLOR ';
+        
+        const colorCircle = document.createElement('span');
+        colorCircle.style.cssText = `display: inline-block; width: 1em; height: 1em; background-color: rgb(${targetColor.join(',')}); vertical-align: middle; border: 2px solid #fff; margin-left: 8px; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0,0,0,0.5);`;
+        span.appendChild(colorCircle);
+        
         tagDisplay.appendChild(span);
         
         const closeBtn = document.createElement('div');
