@@ -407,6 +407,17 @@ async function rescanFolder(skipConfirmation = false) {
         
         statusDiv.textContent = `FORCING_RESCAN: ${images.length}`;
         await processImagesNative(images);
+        
+        // Update lastScanned timestamp
+        if (currentLibrary) {
+            currentLibrary.lastScanned = Date.now();
+            const lib = libraries.find(l => l.id === currentLibrary.id);
+            if (lib) {
+                lib.lastScanned = Date.now();
+                await window.electronAPI.saveLibraries(libraries);
+                renderLibrariesList();
+            }
+        }
     } catch (error) {
         statusDiv.textContent = 'ERR: ' + error.message;
         setLoading(false);
@@ -508,7 +519,8 @@ async function processImagesNative(toAnalyzeList) {
         
         // Send to native analyzer
         const imagePaths = toAnalyzeList.map(img => img.path);
-        const result = await window.electronAPI.analyzeImages(imagePaths);
+        // Pass true to reload labels when doing a force rescan (allows labels.js edits to take effect)
+        const result = await window.electronAPI.analyzeImages(imagePaths, true);
         
         // Update images with results
         result.results.forEach(analyzed => {
@@ -1294,7 +1306,15 @@ async function searchImages() {
         if (keyword) {
             const span = document.createElement('span');
             span.id = 'active-tag-text';
-            span.textContent = keyword;
+            
+            // Break into two lines if more than one word
+            const words = keyword.split(' ');
+            if (words.length > 1) {
+                span.innerHTML = words[0] + '<br>' + words.slice(1).join(' ');
+            } else {
+                span.textContent = keyword;
+            }
+            
             tagDisplay.appendChild(span);
             
             const closeBtn = document.createElement('div');
@@ -1314,11 +1334,13 @@ async function searchImages() {
     statusDiv.textContent = 'FILTERING...';
     setLoading(true);
     
-    // Filter matching images
+    // Filter matching images using whole-word matching
     const matchedImages = [];
+    // Create regex for whole word matching (with word boundaries)
+    const searchRegex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
     
     images.forEach((img, i) => {
-        const match = img.keywords && img.keywords.some(p => p.className.toLowerCase().includes(keyword));
+        const match = img.keywords && img.keywords.some(p => searchRegex.test(p.className));
         if (match) {
             matchedImages.push({ ...img, originalIndex: i });
         }
@@ -1945,12 +1967,33 @@ function renderLibrariesList() {
             
             const imageCount = currentLibrary.imageCount || 0;
             const imageCountText = imageCount === 1 ? '1 image' : `${imageCount} images`;
+            
+            // Calculate last scanned time
+            let lastScannedText = 'Never';
+            if (currentLibrary.lastScanned) {
+                const date = new Date(currentLibrary.lastScanned);
+                const now = new Date();
+                const diffMs = now - date;
+                const diffMins = Math.floor(diffMs / 60000);
+                const diffHours = Math.floor(diffMs / 3600000);
+                const diffDays = Math.floor(diffMs / 86400000);
+                
+                if (diffMins < 1) lastScannedText = 'Just now';
+                else if (diffMins < 60) lastScannedText = `${diffMins}m ago`;
+                else if (diffHours < 24) lastScannedText = `${diffHours}h ago`;
+                else if (diffDays < 7) lastScannedText = `${diffDays}d ago`;
+                else lastScannedText = date.toLocaleDateString();
+            }
 
             currentLibDisplay.innerHTML = `
                 <div class="library-info" style="padding:12px;">
                     <div class="library-name" style="font-weight:700;">${currentLibrary.name}</div>
                     <div class="library-path" style="font-size:0.65rem; opacity:0.6; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${currentLibrary.path}</div>
                     <div class="library-updated" style="font-size:0.6rem; opacity:0.4; margin-top:4px;">${imageCountText} • Updated: ${lastUpdatedText}</div>
+                    <div class="library-updated" style="font-size:0.6rem; opacity:0.4; margin-top:2px;">Last scanned: ${lastScannedText}</div>
+                </div>
+                <div class="library-actions">
+                    <button class="library-btn" onclick="rescanCurrentLibrary()">Rescan</button>
                 </div>
             `;
             currentLibDisplay.className = 'library-item active';
@@ -2136,6 +2179,14 @@ function updateCurrentLibraryInfo() {
     }
 }
 
+async function rescanCurrentLibrary() {
+    if (!currentLibrary) {
+        statusDiv.textContent = 'ERR: NO_LIBRARY_SELECTED';
+        return;
+    }
+    await rescanFolder();
+}
+
 async function scanCurrentLibrary() {
     if (!currentLibrary) {
         statusDiv.textContent = 'ERR: NO_LIBRARY_SELECTED';
@@ -2274,7 +2325,7 @@ async function filterByColor(targetColor) {
     setLoading(true);
     
     const matchedImages = [];
-    const threshold = 100; // Distance threshold in RGB
+    const threshold = 30; // Distance threshold in RGB (very strict matching)
     
     images.forEach((img, i) => {
         if (!img.color) return;

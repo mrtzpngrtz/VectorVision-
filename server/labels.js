@@ -77,32 +77,23 @@ const CANDIDATE_LABELS = [
 ];
 
 /**
- * Label cleaning configuration
- * These prefixes/suffixes are stripped from CLIP labels to produce cleaner output
- */
-const LABEL_CLEANUP_PATTERNS = [
-    'a photo of ',
-    'an ',
-    'a ',
-    'the ',
-    'photo'
-];
-
-/**
  * Clean a label by removing common CLIP prompt artifacts
+ * Uses smart regex to avoid breaking words like "photography"
  * @param {string} label - Raw label from CLIP
  * @returns {string} - Cleaned label
  */
 function cleanLabel(label) {
-    let cleaned = label;
-    for (const pattern of LABEL_CLEANUP_PATTERNS) {
-        cleaned = cleaned.replace(pattern, '');
-    }
+    // Only remove "a photo of", "an image of", etc. if they are at the START
+    let cleaned = label.replace(/^(a photo of|an image of|a picture of|an|a|the)\s+/i, '');
+    
+    // Only remove standalone "photo" or "image" (e.g., "mountain photo" -> "mountain")
+    // but keep "photography" intact using word boundaries
+    cleaned = cleaned.replace(/\b(photo|image)\b/gi, '');
+    
     return cleaned.trim();
 }
 
 module.exports = {
     CANDIDATE_LABELS,
-    LABEL_CLEANUP_PATTERNS,
     cleanLabel
 };

@@ -135,26 +135,27 @@ async function loadModel() {
 
 // Pre-encode all candidate labels for fast classification
 async function preEncodeTextLabels() {
-    // Use labels from centralized configuration
-    cachedCandidateLabels = CANDIDATE_LABELS;
+    // Reload labels from file to pick up any changes
+    const labelsPath = require.resolve('./labels');
+    delete require.cache[labelsPath];
+    const { CANDIDATE_LABELS: freshLabels } = require('./labels');
+    
+    // Use fresh labels from centralized configuration
+    cachedCandidateLabels = freshLabels;
     cachedTextFeatures = await Promise.all(
-        CANDIDATE_LABELS.map(label => extractTextFeatures(label))
+        freshLabels.map(label => extractTextFeatures(label))
     );
     
-    // Debug: Check if text features are actually different
-    console.log('\n=== TEXT FEATURE DEBUG ===');
-    console.log(`Encoded ${cachedTextFeatures.length} labels`);
-    console.log(`Sample "black and white" first 5 values:`, cachedTextFeatures[0].slice(0, 5));
-    console.log(`Sample "portrait" first 5 values:`, cachedTextFeatures[cachedCandidateLabels.indexOf('portrait')].slice(0, 5));
-    console.log(`Sample "architecture" first 5 values:`, cachedTextFeatures[cachedCandidateLabels.indexOf('architecture')].slice(0, 5));
-    
-    // Check if they're all the same
-    const firstFeature = cachedTextFeatures[0];
-    const allSame = cachedTextFeatures.every(feat => 
-        feat.every((val, idx) => Math.abs(val - firstFeature[idx]) < 0.0001)
-    );
-    console.log(`All features identical: ${allSame}`);
-    console.log('========================\n');
+    console.log(`\n=== LABELS LOADED: ${cachedTextFeatures.length} categories ===`);
+}
+
+// Reload labels and re-encode them (called when user edits labels.js and rescans)
+async function reloadLabels() {
+    console.log('Reloading labels from labels.js...');
+    cachedTextFeatures = null;
+    cachedCandidateLabels = null;
+    await preEncodeTextLabels();
+    console.log('Labels reloaded successfully');
 }
 
 // Preprocess image for CLIP (224x224, normalized)
@@ -552,5 +553,6 @@ async function extractFeatures(imagePath) {
 module.exports = { 
     loadModel, 
     extractFeatures,
+    reloadLabels,
     getHardwareProvider: () => hardwareProvider
 };

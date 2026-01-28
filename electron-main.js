@@ -152,9 +152,14 @@ ipcMain.handle('delete-library-db', async (event, libraryId) => {
 });
 
 // Analyze images with native CLIP
-ipcMain.handle('analyze-images', async (event, imagePaths) => {
+ipcMain.handle('analyze-images', async (event, imagePaths, forceReloadLabels = false) => {
     try {
         await analyzer.loadModel();
+        
+        // Reload labels if requested (for Force Rescan after editing labels.js)
+        if (forceReloadLabels) {
+            await analyzer.reloadLabels();
+        }
         
         const results = [];
         const total = imagePaths.length;
