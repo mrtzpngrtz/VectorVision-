@@ -74,9 +74,11 @@ function setLoading(active) {
 }
 
 let is3D = false;
-let currentSort = 'semantic'; // 'semantic', 'color', 'grid', 'lightness'
+let currentSort = 'semantic'; // 'semantic', 'similarity', 'color', 'grid', 'lightness'
 let som2D = null;
 let som3D = null;
+let similarityReferenceIndex = null;
+let similarityReferenceImage = null;
 
 function toggleSidebarSection(id) {
     const el = document.getElementById(id);
@@ -1047,9 +1049,29 @@ async function setSorting(mode) {
     document.querySelectorAll('[id^="sort-"]').forEach(b => b.classList.remove('active'));
     const btn = document.getElementById(`sort-${mode}`);
     if (btn) btn.classList.add('active');
+    
+    // Show/hide similarity info panel
+    const similarityInfo = document.getElementById('similarity-info');
+    if (similarityInfo) {
+        similarityInfo.style.display = (mode === 'similarity') ? 'block' : 'none';
+    }
+    
     if (images.length === 0) return;
-    if (mode === 'grid') statusDiv.textContent = "MODE_SEQUENTIAL";
-    else if (mode === 'color') {
+    
+    if (mode === 'grid') {
+        statusDiv.textContent = "MODE_SEQUENTIAL";
+    } else if (mode === 'similarity') {
+        // Check if reference image is set before attempting similarity sort
+        if (!similarityReferenceImage || !similarityReferenceImage.features) {
+            statusDiv.textContent = 'SELECT_REFERENCE_IMAGE';
+            setLoading(false);
+            // Show current images in semantic mode for now
+            displayImages(images);
+            return;
+        }
+        await sortBySimilarity();
+        return; // sortBySimilarity handles display
+    } else if (mode === 'color') {
         statusDiv.textContent = "MODE_CHROMATIC";
         const hasColorData = images.every(img => img.colorVector);
         if (!hasColorData) await ensureColorData();
@@ -1220,7 +1242,14 @@ function displayImages(imageList) {
         el.oncontextmenu = (e) => { 
             e.preventDefault(); 
             e.stopPropagation(); 
-            highlightNeighbors(index); 
+            // Set as reference for similarity sorting
+            setReferenceImage(index);
+            statusDiv.textContent = 'REFERENCE_IMAGE_SET';
+            setTimeout(() => {
+                if (statusDiv.textContent === 'REFERENCE_IMAGE_SET') {
+                    statusDiv.textContent = 'SYSTEM_READY';
+                }
+            }, 1500);
         };
         // Track mouse movement for click vs drag detection
         let imageMouseDown = false;
@@ -2720,6 +2749,289 @@ function showLibrarySelection() {
     const modal = document.getElementById('library-selection-modal');
     modal.style.display = 'flex';
     renderLibrariesList(); // Update list in case it wasn't rendered yet
+}
+
+// Manual drift direction change
+function changeDriftDirection() {
+    randomizeTargetVelocity();
+    statusDiv.textContent = 'DRIFT_DIRECTION_CHANGED';
+    setTimeout(() => {
+        if (statusDiv.textContent === 'DRIFT_DIRECTION_CHANGED') {
+            statusDiv.textContent = 'SYSTEM_READY';
+        }
+    }, 1500);
+}
+
+// Similarity sorting functions
+function setReferenceImage(index) {
+    similarityReferenceIndex = index;
+    similarityReferenceImage = images[index];
+    
+    // Update UI to show reference
+    const similarityInfo = document.getElementById('similarity-info');
+    const refNameEl = document.getElementById('similarity-ref-name');
+    
+    if (similarityInfo && refNameEl && similarityReferenceImage) {
+        refNameEl.textContent = `Reference: ${similarityReferenceImage.name}`;
+        similarityInfo.style.display = 'block';
+    }
+    
+    // If already in similarity mode, re-sort
+    if (currentSort === 'similarity') {
+        sortBySimilarity();
+    }
+}
+
+function clearSimilarityReference() {
+    similarityReferenceIndex = null;
+    similarityReferenceImage = null;
+    
+    const similarityInfo = document.getElementById('similarity-info');
+    if (similarityInfo) {
+        similarityInfo.style.display = 'none';
+    }
+    
+    // Switch back to semantic sort
+    setSorting('semantic');
+}
+
+async function sortBySimilarity() {
+    if (!similarityReferenceImage || !similarityReferenceImage.features) {
+        statusDiv.textContent = 'ERR: NO_REFERENCE_IMAGE';
+        setLoading(false);
+        // Auto-clear after a delay
+        setTimeout(() => {
+            statusDiv.textContent = 'SELECT_REFERENCE_IMAGE';
+        }, 2000);
+        return;
+    }
+    
+    statusDiv.textContent = 'SORTING_BY_SIMILARITY';
+    setLoading(true);
+    
+    // Calculate similarities for all images in batches to avoid blocking UI
+    const refFeatures = similarityReferenceImage.features;
+    const imagesWithSimilarity = [];
+    const batchSize = 50; // Process 50 images at a time
+    
+    for (let batchStart = 0; batchStart < images.length; batchStart += batchSize) {
+        const batchEnd = Math.min(batchStart + batchSize, images.length);
+        
+        // Process this batch
+        for (let i = batchStart; i < batchEnd; i++) {
+            const img = images[i];
+            
+            if (!img.features) {
+                imagesWithSimilarity.push({ ...img, similarity: 0, originalIndex: i });
+                continue;
+            }
+            
+            // Cosine similarity
+            let dotProduct = 0;
+            let normA = 0;
+            let normB = 0;
+            
+            for (let j = 0; j < refFeatures.length; j++) {
+                dotProduct += refFeatures[j] * img.features[j];
+                normA += refFeatures[j] * refFeatures[j];
+                normB += img.features[j] * img.features[j];
+            }
+            
+            const similarity = dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+            
+            imagesWithSimilarity.push({ ...img, similarity, originalIndex: i });
+        }
+        
+        // Allow UI to update between batches
+        await new Promise(resolve => setTimeout(resolve, 0));
+        
+        // Update progress
+        const progress = Math.round((batchEnd / images.length) * 100);
+        statusDiv.textContent = `CALCULATING_SIMILARITY: ${progress}%`;
+    }
+    
+    // Sort by similarity (descending)
+    imagesWithSimilarity.sort((a, b) => b.similarity - a.similarity);
+    
+    // Arrange in "Solar System" / Elliptical Orbit Layout
+    const centerX = 50;
+    const centerY = 50;
+    
+    imagesWithSimilarity.forEach((img, i) => {
+        if (i === 0) {
+            // Reference image at center ("Sun")
+            img.xSim = centerX;
+            img.ySim = centerY;
+        } else {
+            // Place on elliptical orbits - more similar = closer orbits
+            // Determine which orbit this image is on
+            const imagesPerOrbit = 8; // Start with 8 images on first orbit, increase for outer orbits
+            let currentOrbit = 0;
+            let imagesInPreviousOrbits = 0;
+            let totalCapacity = 0;
+            
+            // Find which orbit this image belongs to
+            while (totalCapacity < i) {
+                currentOrbit++;
+                const orbitCapacity = imagesPerOrbit * currentOrbit;
+                totalCapacity += orbitCapacity;
+            }
+            
+            // Position within the orbit
+            const prevCapacity = currentOrbit === 1 ? 0 : (imagesPerOrbit * (currentOrbit - 1) * currentOrbit) / 2;
+            const positionInOrbit = i - prevCapacity - 1;
+            const itemsInThisOrbit = imagesPerOrbit * currentOrbit;
+            const angle = (positionInOrbit / itemsInThisOrbit) * Math.PI * 2;
+            
+            // Orbital radius increases with distance (circular orbits)
+            const radius = currentOrbit * 2.0; // Same radius for both X and Y = perfect circle
+            
+            img.xSim = centerX + Math.cos(angle) * radius;
+            img.ySim = centerY + Math.sin(angle) * radius;
+        }
+    });
+    
+    currentVisibleImages = imagesWithSimilarity;
+    displaySimilarityImages(imagesWithSimilarity);
+    
+    statusDiv.textContent = 'SORTED_BY_SIMILARITY';
+    setLoading(false);
+}
+
+function displaySimilarityImages(imageList) {
+    mapContainer.innerHTML = '';
+    imageNodeElements = [];
+    
+    const gridCols = Math.ceil(Math.sqrt(imageList.length));
+    const cellW = 4000 / (gridCols + 2);
+    const cellH = 4000 / (gridCols + 2);
+    
+    const fragment = document.createDocumentFragment();
+    
+    imageList.forEach((img, index) => {
+        const el = document.createElement('div');
+        el.className = 'image-node';
+        el.id = `node-${img.originalIndex}`;
+        el.style.width = `${cellW}px`;
+        el.style.height = `${cellH}px`;
+        
+        const x = (img.xSim || 0) * cellW;
+        const y = (img.ySim || 0) * cellH;
+        
+        el.style.setProperty('--tx', `${x}px`);
+        el.style.setProperty('--ty', `${y}px`);
+        el.style.setProperty('--tz', '0px');
+        el._tz_val = 0;
+        el._visible = true;
+        
+        el.onmouseenter = () => {
+            hoveredIndex = index;
+            let content = `ID: ${img.name.toUpperCase()}<br>`;
+            
+            // Show similarity score
+            if (img.similarity !== undefined) {
+                const simPercent = (img.similarity * 100).toFixed(1);
+                content += `SIMILARITY: ${simPercent}%<br>`;
+            }
+            
+            if (img.keywords && img.keywords.length > 0) {
+                const tags = img.keywords.map(k => k.className.toUpperCase()).join(', ');
+                content += `TAGS: ${tags}<br>`;
+            }
+            if (img.aestheticScore !== undefined && img.aestheticScore !== null) {
+                const score = img.aestheticScore.toFixed(2);
+                const stars = '★'.repeat(Math.round(img.aestheticScore / 2));
+                content += `SCORE: ${score}/10 ${stars}<br>`;
+            }
+            if (img.palette && img.palette.length > 0) {
+                content += `PALETTE:<br>`;
+                content += `<div class="palette-container">`;
+                img.palette.forEach(c => {
+                    content += `<div class="palette-swatch" style="background: rgb(${c[0]},${c[1]},${c[2]})" title="RGB: ${c.join(',')}"></div>`;
+                });
+                content += `</div>`;
+            }
+            content += `POS: [${Math.round(x)},${Math.round(y)},0]`;
+            semanticInfoDiv.innerHTML = content;
+            el.classList.add('is-hovered');
+            
+            const previewImg = document.getElementById('preview-img');
+            const previewPlaceholder = document.getElementById('preview-placeholder');
+            if (previewImg && previewPlaceholder) {
+                const imageUrl = isElectron ? `file:///${img.path.replace(/\\/g, '/')}` : (img.url || img.thumbUrl);
+                const tempImg = new Image();
+                tempImg.onload = () => {
+                    previewImg.src = imageUrl;
+                    previewImg.style.display = 'block';
+                    previewPlaceholder.style.display = 'none';
+                };
+                tempImg.src = imageUrl;
+            }
+        };
+        
+        el.onmouseleave = () => {
+            hoveredIndex = -1;
+            el.classList.remove('is-hovered');
+            semanticInfoDiv.textContent = 'Hover over an image to see details...';
+            const previewImg = document.getElementById('preview-img');
+            const previewPlaceholder = document.getElementById('preview-placeholder');
+            if (previewImg && previewPlaceholder) {
+                previewImg.style.display = 'none';
+                previewPlaceholder.style.display = 'block';
+                previewImg.src = '';
+            }
+        };
+        
+        // Right-click to set as new reference
+        el.oncontextmenu = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setReferenceImage(img.originalIndex);
+        };
+        
+        el.ondblclick = (e) => {
+            e.stopPropagation();
+            showLightbox(index);
+        };
+        
+        const imageElement = document.createElement('img');
+        if (isElectron && !img.thumbnailData) {
+            imageElement.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150"%3E%3Crect fill="%23222" width="150" height="150"/%3E%3C/svg%3E';
+            window.electronAPI.getImageData(img.path).then(result => {
+                img.thumbnailData = result.dataUrl;
+                imageElement.src = result.dataUrl;
+            });
+        } else if (isElectron && img.thumbnailData) {
+            imageElement.src = img.thumbnailData;
+        } else {
+            imageElement.src = img.thumbUrl;
+        }
+        imageElement.loading = 'lazy';
+        el.appendChild(imageElement);
+        fragment.appendChild(el);
+        imageNodeElements.push(el);
+    });
+    
+    mapContainer.appendChild(fragment);
+    mapContainer.className = '';
+    
+    // Center on the reference image (which is at 50, 50)
+    const referenceX = 50;
+    const referenceY = 50;
+    const refX = referenceX * cellW;
+    const refY = referenceY * cellH;
+    
+    // Zoom and center on reference
+    const rect = main.getBoundingClientRect();
+    const viewCenterX = rect.width / 2;
+    const viewCenterY = rect.height / 2;
+    
+    scale = 0.8; // Closer zoom for similarity view
+    pointX = viewCenterX - (refX * scale);
+    pointY = viewCenterY - (refY * scale);
+    
+    updateTransform();
+    updateZoomSlider();
 }
 
 // Load libraries on startup

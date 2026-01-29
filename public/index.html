@@ -37,7 +37,8 @@
                         </div>
                         
                         <div id="view-presets" style="display:none;">
-                            <button id="auto-move-toggle" onclick="toggleAutoMove()" class="secondary-btn compact" style="width:100%">Auto Drift: ON</button>
+                            <button id="auto-move-toggle" onclick="toggleAutoMove()" class="secondary-btn compact" style="width:100%; margin-bottom:4px;">Auto Drift: ON</button>
+                            <button onclick="changeDriftDirection()" class="secondary-btn compact" style="width:100%">Change Drift Direction</button>
                         </div>
                     </div>
                 </div>
@@ -48,9 +49,14 @@
                     <div class="section-content">
                         <div class="radio-group-vertical">
                             <button onclick="setSorting('semantic')" id="sort-semantic" class="radio-btn active">Semantic (AI)</button>
+                            <button onclick="setSorting('similarity')" id="sort-similarity" class="radio-btn">Similarity Sort</button>
                             <button onclick="setSorting('color')" id="sort-color" class="radio-btn">Color Spectrum</button>
                             <button onclick="setSorting('lightness')" id="sort-lightness" class="radio-btn">Lightness</button>
                             <button onclick="setSorting('grid')" id="sort-grid" class="radio-btn">Grid (Date)</button>
+                        </div>
+                        <div id="similarity-info" style="display:none; font-size:0.65rem; opacity:0.6; margin-top:8px; padding:8px; background:rgba(255,255,255,0.05); border-radius:4px;">
+                            <div id="similarity-ref-name">No reference selected</div>
+                            <button onclick="clearSimilarityReference()" class="secondary-btn compact" style="margin-top:4px; width:100%;">Clear Reference</button>
                         </div>
                     </div>
                 </div>
