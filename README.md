@@ -30,17 +30,17 @@ This is not a commercial product. It is a personal tool built through vibecoding
 
 *   **Native GPU Acceleration**: Uses ONNX Runtime with DirectML (Windows) or CoreML (macOS) for 5-10x faster image analysis
 *   **Video Support**: Analyzes MP4 and WebM videos by extracting and processing the first frame (requires FFmpeg)
-*   **AI Semantic Clustering**: Organizes images by visual similarity using CLIP embeddings and Self-Organizing Maps (SOM)
+*   **AI Semantic Clustering**: Organizes images by visual similarity using SigLIP embeddings and Self-Organizing Maps (SOM)
 *   **Library Management**: Multiple libraries with image counts, last updated timestamps, and quick switching
-*   **150+ Smart Categories**: Optimized for artistic/design/fashion photography with tags like:
-    *   **Photography**: monochrome, minimalist, abstract, high contrast, dramatic, cinematic, editorial
-    *   **Design**: graphic design, typography, branding, layout, composition, visual identity
-    *   **Patterns**: geometric pattern, texture, striped, grid, lines, waves, abstract pattern
-    *   **Objects**: product, still life, bottle, glass, sphere, cube, geometric shape
-    *   **Space**: negative space, minimal composition, centered, symmetrical, balanced
-    *   **Light**: light and shadow, chiaroscuro, dramatic lighting, backlit, silhouette
-    *   **Color**: vibrant, muted, gradients, warm tones, cool tones
-    *   **Style**: fashion, elegant, contemporary, avant garde, experimental, surreal
+*   **375+ Smart Categories**: Optimized for artistic/design/fashion photography with tags like:
+    *   **Photography**: monochrome, minimalist, abstract, cinematic, editorial, documentary, candid
+    *   **Design**: graphic design, typography, bauhaus, art deco, swiss design, memphis design
+    *   **Materials**: leather, silk, velvet, chrome, marble, wood, brushed metal, glossy, matte
+    *   **Lighting**: neon, golden hour, softbox, natural light, chiaroscuro, volumetric light
+    *   **Mood**: serene, energetic, melancholic, ethereal, clinical, intimate, bold
+    *   **Technical**: bokeh, motion blur, shallow depth of field, macro, wide angle, grain
+    *   **Aesthetics**: y2k, vaporwave, cyberpunk, wabi sabi, kinfolk, maximalist, retro
+    *   **Color**: specific colors (red, emerald, coral) + color theory (complementary, analogous)
 *   **Multi-Dimensional Sorting**: 2D/3D clustering by AI semantics, color, or lightness
 *   **Informative Progress**: Context-aware loading overlays with detailed descriptions of each processing phase
 *   **Smart Search & Filtering**: 
@@ -105,7 +105,7 @@ This is not a commercial product. It is a personal tool built through vibecoding
     npm run dev
     ```
 
-**First Launch:** The app will automatically download CLIP models (~600MB) on first run. Models are cached in the `models/` directory for future use.
+**First Launch:** The app will automatically download SigLIP models (~600MB) on first run. Models are cached in the `models/` directory for future use.
 
 ## [▶] USAGE
 
@@ -173,7 +173,7 @@ Compared to the browser-based version:
 
 *   **Electron**: Cross-platform desktop framework
 *   **ONNX Runtime**: Native AI inference with GPU support (DirectML/CoreML)
-*   **CLIP (ViT-Base-Patch32)**: OpenAI's vision-language model for embeddings and zero-shot classification
+*   **SigLIP (Base-Patch16-224)**: Google's improved vision-language model for embeddings and zero-shot classification (successor to CLIP)
 *   **Sharp**: High-performance Node.js image processing
 *   **FFmpeg**: Video frame extraction for MP4/WebM support
 *   **Self-Organizing Maps**: Unsupervised clustering for spatial layout
@@ -231,7 +231,7 @@ Copyright (c) 2026 Moritz Pongratz
 This project uses the following open-source technologies:
 
 ### Core Technologies
-- **[CLIP (ViT-Base-Patch32)](https://github.com/openai/CLIP)** - OpenAI's vision-language model for embeddings and zero-shot classification (MIT License)
+- **[SigLIP (Base-Patch16-224)](https://huggingface.co/google/siglip-base-patch16-224)** - Google's improved vision-language model for embeddings and zero-shot classification, successor to CLIP (Apache-2.0 License)
 - **[ONNX Runtime](https://github.com/microsoft/onnxruntime)** - Microsoft's cross-platform ML inference engine with DirectML/CoreML support (MIT License)
 - **[Electron](https://www.electronjs.org/)** - Cross-platform desktop application framework (MIT License)
 - **[Sharp](https://github.com/lovell/sharp)** - High-performance Node.js image processing library (Apache-2.0 License)

@@ -9,6 +9,7 @@ const { CANDIDATE_LABELS, cleanLabel } = require('./labels');
 
 let visionSession = null;
 let textSession = null;
+let dinoSession = null; // DINOv2 for visual similarity
 let hardwareProvider = 'cpu';
 let clipTokenizer = null;
 let AutoTokenizer = null;
@@ -17,15 +18,18 @@ let AutoTokenizer = null;
 let cachedTextFeatures = null;
 let cachedCandidateLabels = null;
 
-// CLIP model URLs (ONNX format) - Using Xenova's properly converted models
+// SigLIP model URLs (ONNX format) - Using Xenova's properly converted models
+// SigLIP provides better zero-shot classification than CLIP
 const MODEL_URLS = {
-    vision: 'https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/main/onnx/vision_model.onnx',
-    text: 'https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/main/onnx/text_model.onnx'
+    vision: 'https://huggingface.co/Xenova/siglip-base-patch16-224/resolve/main/onnx/vision_model.onnx',
+    text: 'https://huggingface.co/Xenova/siglip-base-patch16-224/resolve/main/onnx/text_model.onnx',
+    dino: 'https://huggingface.co/Xenova/dinov2-small/resolve/main/onnx/model.onnx'
 };
 
 const MODELS_DIR = path.join(__dirname, '..', 'models');
-const VISION_MODEL_PATH = path.join(MODELS_DIR, 'clip_vision.onnx');
-const TEXT_MODEL_PATH = path.join(MODELS_DIR, 'clip_text.onnx');
+const VISION_MODEL_PATH = path.join(MODELS_DIR, 'siglip_vision.onnx');
+const TEXT_MODEL_PATH = path.join(MODELS_DIR, 'siglip_text.onnx');
+const DINO_MODEL_PATH = path.join(MODELS_DIR, 'dinov2_small.onnx');
 const TEMP_DIR = path.join(__dirname, '../temp_frames');
 
 // Ensure models directory exists
@@ -128,32 +132,39 @@ function getExecutionProviders() {
 }
 
 async function loadModel() {
-    if (visionSession && textSession) {
+    if (visionSession && textSession && dinoSession) {
         return { hardwareProvider };
     }
 
     try {
         // Download models if needed
-        console.log('Checking CLIP models...');
+        console.log('Checking models...');
         await downloadModel(MODEL_URLS.vision, VISION_MODEL_PATH);
         await downloadModel(MODEL_URLS.text, TEXT_MODEL_PATH);
+        await downloadModel(MODEL_URLS.dino, DINO_MODEL_PATH);
 
         const executionProviders = getExecutionProviders();
         console.log('Using execution providers:', executionProviders);
 
-        // Load vision model for image embeddings
+        // Load SigLIP vision model for semantic embeddings
         visionSession = await ort.InferenceSession.create(VISION_MODEL_PATH, {
             executionProviders: executionProviders
         });
-        console.log('CLIP Vision model loaded');
+        console.log('SigLIP Vision model loaded');
 
-        // Load text model for zero-shot classification
+        // Load SigLIP text model for zero-shot classification
         textSession = await ort.InferenceSession.create(TEXT_MODEL_PATH, {
             executionProviders: executionProviders
         });
-        console.log('CLIP Text model loaded');
+        console.log('SigLIP Text model loaded');
 
-        // Load the proper CLIP tokenizer
+        // Load DINOv2 model for visual similarity (color, texture, style)
+        dinoSession = await ort.InferenceSession.create(DINO_MODEL_PATH, {
+            executionProviders: executionProviders
+        });
+        console.log('DINOv2 model loaded (Visual Expert)');
+
+        // Load the proper SigLIP tokenizer
         await loadTokenizer();
 
         // Pre-encode all text labels for zero-shot classification (performance optimization)
@@ -162,9 +173,12 @@ async function loadModel() {
         console.log('Text labels pre-encoded and cached');
 
         console.log(`Hardware acceleration: ${hardwareProvider}`);
+        console.log('=== DUAL MODEL SYSTEM READY ===');
+        console.log('  SigLIP: Semantic understanding & tags');
+        console.log('  DINOv2: Visual similarity (color, texture, style)');
         return { hardwareProvider };
     } catch (error) {
-        console.error('Error loading CLIP models:', error);
+        console.error('Error loading models:', error);
         throw error;
     }
 }
@@ -194,10 +208,10 @@ async function reloadLabels() {
     console.log('Labels reloaded successfully');
 }
 
-// Preprocess image for CLIP (224x224, normalized)
+// Preprocess image for SigLIP (224x224, normalized)
 async function preprocessImage(imagePath) {
     try {
-        // CLIP preprocessing: resize to 224x224, normalize with ImageNet stats
+        // SigLIP preprocessing: resize to 224x224, normalize with mean=0.5, std=0.5
         const { data, info } = await sharp(imagePath)
             .resize(224, 224, { fit: 'cover' })
             .removeAlpha()
@@ -206,8 +220,38 @@ async function preprocessImage(imagePath) {
 
         // Convert to float32 and normalize
         const float32Data = new Float32Array(3 * 224 * 224);
-        const mean = [0.48145466, 0.4578275, 0.40821073];
-        const std = [0.26862954, 0.26130258, 0.27577711];
+        const mean = 0.5;
+        const std = 0.5;
+
+        for (let i = 0; i < 224 * 224; i++) {
+            // RGB -> normalized channels
+            float32Data[i] = (data[i * 3] / 255.0 - mean) / std; // R
+            float32Data[224 * 224 + i] = (data[i * 3 + 1] / 255.0 - mean) / std; // G
+            float32Data[224 * 224 * 2 + i] = (data[i * 3 + 2] / 255.0 - mean) / std; // B
+        }
+
+        const tensor = new ort.Tensor('float32', float32Data, [1, 3, 224, 224]);
+        return tensor;
+    } catch (error) {
+        console.error('Error preprocessing image:', error);
+        throw error;
+    }
+}
+
+// Preprocess image for DINOv2 (224x224, ImageNet normalization)
+async function preprocessImageDINO(imagePath) {
+    try {
+        // DINOv2 preprocessing: resize to 224x224, normalize with ImageNet stats
+        const { data, info } = await sharp(imagePath)
+            .resize(224, 224, { fit: 'cover' })
+            .removeAlpha()
+            .raw()
+            .toBuffer({ resolveWithObject: true });
+
+        // Convert to float32 and normalize with ImageNet mean/std
+        const float32Data = new Float32Array(3 * 224 * 224);
+        const mean = [0.485, 0.456, 0.406];
+        const std = [0.229, 0.224, 0.225];
 
         for (let i = 0; i < 224 * 224; i++) {
             // RGB -> normalized channels
@@ -219,12 +263,12 @@ async function preprocessImage(imagePath) {
         const tensor = new ort.Tensor('float32', float32Data, [1, 3, 224, 224]);
         return tensor;
     } catch (error) {
-        console.error('Error preprocessing image:', error);
+        console.error('Error preprocessing image for DINO:', error);
         throw error;
     }
 }
 
-// Load CLIP tokenizer
+// Load SigLIP tokenizer
 async function loadTokenizer() {
     if (clipTokenizer) return clipTokenizer;
     
@@ -234,13 +278,13 @@ async function loadTokenizer() {
         AutoTokenizer = transformers.AutoTokenizer;
     }
     
-    console.log('Loading CLIP tokenizer...');
-    clipTokenizer = await AutoTokenizer.from_pretrained('Xenova/clip-vit-base-patch32');
-    console.log('CLIP tokenizer loaded');
+    console.log('Loading SigLIP tokenizer...');
+    clipTokenizer = await AutoTokenizer.from_pretrained('Xenova/siglip-base-patch16-224');
+    console.log('SigLIP tokenizer loaded');
     return clipTokenizer;
 }
 
-// Proper CLIP tokenizer using BPE
+// SigLIP tokenizer using SentencePiece
 async function tokenizeText(text) {
     if (!clipTokenizer) {
         await loadTokenizer();
@@ -248,7 +292,7 @@ async function tokenizeText(text) {
     
     const encoded = await clipTokenizer(text, {
         padding: 'max_length',
-        max_length: 77,
+        max_length: 64,
         truncation: true,
         return_tensors: false
     });
@@ -264,7 +308,7 @@ async function tokenizeText(text) {
         tokenIds = encoded;
     } else {
         console.error('Unexpected tokenizer output format:', encoded);
-        tokenIds = [49406, 49407]; // Fallback: [BOS, EOS]
+        tokenIds = [1, 2]; // Fallback: [BOS, EOS] for SigLIP
     }
     
     // Debug first 3 calls
@@ -275,16 +319,16 @@ async function tokenizeText(text) {
     }
     
     // Convert to BigInt64Array for ONNX
-    const tokens = new BigInt64Array(77);
-    for (let i = 0; i < Math.min(tokenIds.length, 77); i++) {
+    const tokens = new BigInt64Array(64);
+    for (let i = 0; i < Math.min(tokenIds.length, 64); i++) {
         tokens[i] = BigInt(tokenIds[i]);
     }
     
-    return new ort.Tensor('int64', tokens, [1, 77]);
+    return new ort.Tensor('int64', tokens, [1, 64]);
 }
 
 
-// Extract image features using CLIP
+// Extract image features using SigLIP
 async function extractImageFeatures(imagePath) {
     try {
         const imageTensor = await preprocessImage(imagePath);
@@ -299,6 +343,27 @@ async function extractImageFeatures(imagePath) {
         return features;
     } catch (error) {
         console.error('Error extracting image features:', error);
+        throw error;
+    }
+}
+
+// Extract visual features using DINOv2 (for color, texture, style)
+async function extractVisualFeatures(imagePath) {
+    try {
+        const imageTensor = await preprocessImageDINO(imagePath);
+        
+        const feeds = { pixel_values: imageTensor };
+        const results = await dinoSession.run(feeds);
+        
+        // Get CLS token embedding (global visual representation)
+        const embedding = results.last_hidden_state || results.pooler_output;
+        
+        // DINOv2 returns [batch, seq_len, hidden_dim], we want the CLS token (first token)
+        const features = Array.from(embedding.data).slice(0, 384); // DINOv2-small has 384 dims
+        
+        return features;
+    } catch (error) {
+        console.error('Error extracting visual features (DINO):', error);
         throw error;
     }
 }
@@ -326,7 +391,7 @@ function softmax(logits) {
     return exps.map(x => x / sumExps);
 }
 
-// Extract text features using CLIP text encoder
+// Extract text features using SigLIP text encoder
 async function extractTextFeatures(text) {
     try {
         const inputIds = await tokenizeText(text);
@@ -353,7 +418,7 @@ async function extractTextFeatures(text) {
     }
 }
 
-// Zero-shot classification with CLIP - Using cached text features for performance
+// Zero-shot classification with SigLIP - Using cached text features for performance
 async function classifyImage(imagePath) {
     try {
         const imageFeatures = await extractImageFeatures(imagePath);
@@ -589,8 +654,11 @@ async function extractFeatures(imagePath) {
             }
         }
         
-        // Extract CLIP features
+        // Extract SigLIP features (semantic)
         const features = await extractImageFeatures(sourceImage);
+        
+        // Extract DINOv2 features (visual: color, texture, style)
+        const visualFeatures = await extractVisualFeatures(sourceImage);
         
         // Extract keywords using zero-shot classification
         let keywords = await classifyImage(sourceImage);
@@ -610,7 +678,8 @@ async function extractFeatures(imagePath) {
         }
         
         return {
-            features,
+            features,           // SigLIP embeddings for semantic understanding
+            visualFeatures,     // DINOv2 embeddings for visual similarity
             keywords,
             color: colorData ? colorData.color : null,
             colorVector: colorData ? colorData.colorVector : null,

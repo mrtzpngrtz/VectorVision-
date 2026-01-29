@@ -1,14 +1,16 @@
 /**
- * CLIP Zero-Shot Classification Labels
+ * SigLIP Zero-Shot Classification Labels
  * 
  * Optimized vocabulary for artistic/design/fashion photography.
  * These labels are pre-encoded during model initialization for fast classification.
+ * Expanded for better granularity and coverage with SigLIP's improved accuracy.
  */
 
 const CANDIDATE_LABELS = [
     // Photography Styles
     'black and white', 'monochrome', 'minimalist', 'abstract', 'conceptual', 'artistic',
     'high contrast', 'moody', 'dramatic', 'cinematic', 'editorial', 'fine art',
+    'documentary', 'candid', 'staged', 'environmental portrait', 'lifestyle',
     
     // Fashion & Style
     'fashion', 'fashion photography', 'fashion editorial', 'model', 'portrait', 'beauty', 'style', 'clothing', 'accessories',
@@ -73,7 +75,69 @@ const CANDIDATE_LABELS = [
     
     // Composition & Style
     'composition', 'layered', 'overlapping', 'reflection', 'mirror',
-    'double exposure', 'fragmented', 'collage', 'montage'
+    'double exposure', 'fragmented', 'collage', 'montage',
+    
+    // Materials & Finishes
+    'leather', 'silk', 'velvet', 'satin', 'linen', 'cotton',
+    'chrome', 'gold', 'silver', 'copper', 'brass',
+    'marble', 'granite', 'stone', 'wood', 'metal',
+    'glass', 'crystal', 'plastic', 'rubber', 'fabric',
+    'glossy', 'matte', 'brushed metal', 'polished', 'rough',
+    
+    // Specific Lighting Techniques
+    'neon', 'neon lights', 'led', 'golden hour', 'blue hour',
+    'softbox', 'strobe', 'flash', 'natural light', 'window light',
+    'overhead lighting', 'side lighting', 'studio lighting',
+    'candlelight', 'firelight', 'twilight', 'dusk', 'dawn',
+    'harsh shadows', 'soft shadows', 'volumetric light', 'rays of light',
+    
+    // Aesthetics & Design Movements
+    'bauhaus', 'art deco', 'art nouveau', 'modernism', 'postmodernism',
+    'swiss design', 'international style', 'memphis design',
+    'mid century modern', 'scandinavian design', 'japanese aesthetic',
+    'wabi sabi', 'kinfolk', 'hygge', 'maximalist',
+    'y2k', 'retro', 'vintage', 'nostalgic', 'futuristic',
+    'cyberpunk', 'vaporwave', 'synthwave', 'glitch art',
+    
+    // Mood & Atmosphere
+    'serene', 'calm', 'peaceful', 'tranquil', 'zen',
+    'energetic', 'dynamic', 'vibrant', 'lively', 'playful',
+    'melancholic', 'somber', 'dark', 'gloomy', 'ominous',
+    'ethereal', 'mystical', 'magical', 'whimsical',
+    'clinical', 'sterile', 'pristine', 'raw', 'gritty',
+    'intimate', 'vulnerable', 'powerful', 'bold', 'delicate',
+    
+    // Technical Photography Details
+    'shallow depth of field', 'bokeh', 'out of focus',
+    'sharp focus', 'tack sharp', 'motion blur', 'long exposure',
+    'grain', 'grainy', 'film grain', 'smooth', 'crisp',
+    'wide angle', 'fisheye', 'telephoto', 'macro', 'close up',
+    'aerial view', 'birds eye view', 'overhead shot', 'low angle',
+    'dutch angle', 'tilted', 'panoramic', 'cropped',
+    
+    // Fashion Specific Details
+    'runway', 'catwalk', 'lookbook', 'campaign',
+    'knitwear', 'denim', 'tailoring', 'draping', 'pleated',
+    'layered clothing', 'oversized', 'fitted', 'flowing',
+    'structured', 'deconstructed', 'distressed', 'embroidered',
+    'printed', 'textured clothing', 'sheer', 'transparent',
+    
+    // Design Elements
+    'gradient', 'ombre', 'color blocking', 'monochromatic',
+    'complementary colors', 'analogous colors', 'split complementary',
+    'border', 'frame', 'vignette', 'rule of thirds',
+    'leading lines', 'vanishing point', 'depth', 'perspective',
+    'isolation', 'emphasis', 'contrast', 'harmony', 'rhythm',
+    
+    // Seasonal & Time
+    'spring', 'summer', 'autumn', 'winter',
+    'seasonal', 'holiday', 'festive',
+    
+    // Specific Colors
+    'red', 'blue', 'green', 'yellow', 'orange', 'purple',
+    'pink', 'brown', 'beige', 'tan', 'navy', 'teal',
+    'burgundy', 'emerald', 'coral', 'mint', 'lavender',
+    'black', 'white', 'gray', 'grey', 'cream', 'ivory'
 ];
 
 /**
