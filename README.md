@@ -28,9 +28,14 @@ This is not a commercial product. It is a personal tool built through vibecoding
 
 ## [▸] FEATURES
 
+*   **Triple AI Model System**: 
+    *   **SigLIP**: Semantic understanding and zero-shot classification
+    *   **DINOv2**: Visual similarity analysis (color, texture, style)
+    *   **Aesthetic Predictor V2.5**: AI-powered quality scoring (0-10 scale)
 *   **Native GPU Acceleration**: Uses ONNX Runtime with DirectML (Windows) or CoreML (macOS) for 5-10x faster image analysis
 *   **Video Support**: Analyzes MP4 and WebM videos by extracting and processing the first frame (requires FFmpeg)
 *   **AI Semantic Clustering**: Organizes images by visual similarity using SigLIP embeddings and Self-Organizing Maps (SOM)
+*   **Aesthetic Quality Scores**: Each image receives an AI-generated aesthetic score (0-10) with star rating display on hover
 *   **Library Management**: Multiple libraries with image counts, last updated timestamps, and quick switching
 *   **375+ Smart Categories**: Optimized for artistic/design/fashion photography with tags like:
     *   **Photography**: monochrome, minimalist, abstract, cinematic, editorial, documentary, candid
@@ -174,6 +179,8 @@ Compared to the browser-based version:
 *   **Electron**: Cross-platform desktop framework
 *   **ONNX Runtime**: Native AI inference with GPU support (DirectML/CoreML)
 *   **SigLIP (Base-Patch16-224)**: Google's improved vision-language model for embeddings and zero-shot classification (successor to CLIP)
+*   **DINOv2 (Small)**: Meta's self-supervised vision transformer for visual similarity and feature extraction
+*   **Aesthetic Predictor V2.5**: Specialized model for AI-powered image quality assessment (0-10 scoring)
 *   **Sharp**: High-performance Node.js image processing
 *   **FFmpeg**: Video frame extraction for MP4/WebM support
 *   **Self-Organizing Maps**: Unsupervised clustering for spatial layout
@@ -232,6 +239,8 @@ This project uses the following open-source technologies:
 
 ### Core Technologies
 - **[SigLIP (Base-Patch16-224)](https://huggingface.co/google/siglip-base-patch16-224)** - Google's improved vision-language model for embeddings and zero-shot classification, successor to CLIP (Apache-2.0 License)
+- **[DINOv2 (Small)](https://huggingface.co/facebook/dinov2-small)** - Meta's self-supervised vision transformer for visual similarity analysis (Apache-2.0 License)
+- **[Aesthetic Predictor V2.5](https://huggingface.co/fsw/aesthetic-predictor-v2-5_onnx)** - AI-powered image quality assessment model trained on SigLIP embeddings (Public Domain)
 - **[ONNX Runtime](https://github.com/microsoft/onnxruntime)** - Microsoft's cross-platform ML inference engine with DirectML/CoreML support (MIT License)
 - **[Electron](https://www.electronjs.org/)** - Cross-platform desktop application framework (MIT License)
 - **[Sharp](https://github.com/lovell/sharp)** - High-performance Node.js image processing library (Apache-2.0 License)

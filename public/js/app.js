@@ -62,6 +62,7 @@ let pendingLibraryAction = null;
 let selectedLibraryId = null;
 let activeColorFilter = null;
 let activeMediaFilter = 'all'; // 'all', 'video', or 'static'
+let activeScoreFilter = 0; // Minimum aesthetic score filter (0-10)
 
 function setLoading(active) {
     const loadingOverlay = document.getElementById('loading-overlay');
@@ -468,6 +469,21 @@ async function processImagesNative(toAnalyzeList) {
             hwAccelEl.textContent = hardwareAccel;
             hwAccelEl.style.color = '#00ff00';
         }
+        
+        // Listen for model system info
+        if (isElectron) {
+            window.electronAPI.onModelSystemInfo((info) => {
+                const modelSystemEl = document.getElementById('model-system-status');
+                if (modelSystemEl) {
+                    modelSystemEl.textContent = `${info.modelSystem} MODEL SYSTEM`;
+                    modelSystemEl.style.color = info.hasAestheticModel ? '#00ff00' : '#ffaa00';
+                    modelSystemEl.title = info.hasAestheticModel 
+                        ? 'SigLIP + DINOv2 + Aesthetic Predictor'
+                        : 'SigLIP + DINOv2 (Aesthetic model not available)';
+                    modelSystemEl.style.display = 'block'; // Show in loading overlay
+                }
+            });
+        }
 
         // Initialize stats
         const progressBar = document.getElementById('progress-bar');
@@ -560,6 +576,7 @@ async function processImagesNative(toAnalyzeList) {
                 img.color = analyzed.color;
                 img.colorVector = analyzed.colorVector;
                 img.palette = analyzed.palette;
+                img.aestheticScore = analyzed.aestheticScore; // Add aesthetic score
             }
         });
         
@@ -993,7 +1010,7 @@ async function saveData() {
         dataToSave[img.path] = {
             path: img.path, created: img.created,
             features: img.features, color: img.color, colorVector: img.colorVector, keywords: img.keywords,
-            palette: img.palette,
+            palette: img.palette, aestheticScore: img.aestheticScore,
             x: img.x, y: img.y, x3: img.x3, y3: img.y3, z3: img.z3,
             xC: img.xC, yC: img.yC, xC3: img.xC3, yC3: img.yC3, zC3: img.zC3,
             xLight: img.xLight, yLight: img.yLight, zLight: img.zLight
@@ -1131,6 +1148,13 @@ function displayImages(imageList) {
             if (img.keywords && img.keywords.length > 0) {
                 const tags = img.keywords.map(k => k.className.toUpperCase()).join(', ');
                 content += `TAGS: ${tags}<br>`;
+            }
+            if (img.aestheticScore !== undefined && img.aestheticScore !== null) {
+                const score = img.aestheticScore.toFixed(2);
+                const stars = '★'.repeat(Math.round(img.aestheticScore / 2));
+                content += `SCORE: ${score}/10 ${stars}<br>`;
+            } else {
+                content += `SCORE: N/A (Rescan to add)<br>`;
             }
             if (img.palette && img.palette.length > 0) {
                 content += `PALETTE:<br>`;
@@ -1353,6 +1377,13 @@ function clearAll() {
     document.getElementById('search-input').value = '';
     activeColorFilter = null;
     activeMediaFilter = 'all';
+    activeScoreFilter = 0;
+    
+    // Reset score slider
+    const scoreSlider = document.getElementById('score-slider');
+    const scoreValue = document.getElementById('score-value');
+    if (scoreSlider) scoreSlider.value = 0;
+    if (scoreValue) scoreValue.textContent = 'All';
     
     // Reset media type filter buttons
     document.querySelectorAll('[id^="media-"]').forEach(btn => btn.classList.remove('active'));
@@ -1366,6 +1397,7 @@ function clearAll() {
     statusDiv.textContent = 'RESTORING_VIEW...';
     
     // Simply redisplay all images with their original layout
+    currentVisibleImages = images;
     displayImages(images);
     
     statusDiv.textContent = 'SYSTEM_READY';
@@ -2697,3 +2729,218 @@ if (isElectron) {
 
 // Initialize popup
 initStartPopup();
+
+// Score filter setup
+const scoreSlider = document.getElementById('score-slider');
+const scoreValue = document.getElementById('score-value');
+
+if (scoreSlider && scoreValue) {
+    scoreSlider.addEventListener('input', (e) => {
+        const value = parseFloat(e.target.value);
+        scoreValue.textContent = value > 0 ? `${value}+` : 'All';
+        activeScoreFilter = value;
+        applyFilters();
+    });
+}
+
+// Apply all active filters (text search, score, color, media type)
+async function applyFilters() {
+    const searchInput = document.getElementById('search-input');
+    const keyword = searchInput ? searchInput.value.toLowerCase().trim() : '';
+    
+    // Start with all images
+    let filtered = [...images];
+    
+    // Apply score filter - only filter images that have scores
+    if (activeScoreFilter > 0) {
+        // Check if ANY images have scores
+        const imagesWithScores = filtered.filter(img => img.aestheticScore !== undefined && img.aestheticScore !== null);
+        
+        if (imagesWithScores.length > 0) {
+            // Only filter images that have scores and meet the threshold
+            filtered = imagesWithScores.filter(img => img.aestheticScore >= activeScoreFilter);
+        }
+        // If no images have scores, don't apply the filter at all
+    }
+    
+    // Apply media type filter
+    if (activeMediaFilter !== 'all') {
+        filtered = filtered.filter(img => {
+            if (img.keywords && Array.isArray(img.keywords)) {
+                return img.keywords.some(kw => {
+                    const className = kw.className || kw;
+                    return className.toLowerCase() === activeMediaFilter;
+                });
+            }
+            return false;
+        });
+    }
+    
+    // Apply color filter
+    if (activeColorFilter) {
+        const threshold = 30;
+        filtered = filtered.filter(img => {
+            if (!img.color) return false;
+            const dist = Math.sqrt(
+                Math.pow(img.color[0] - activeColorFilter[0], 2) +
+                Math.pow(img.color[1] - activeColorFilter[1], 2) +
+                Math.pow(img.color[2] - activeColorFilter[2], 2)
+            );
+            return dist < threshold;
+        });
+    }
+    
+    // Apply text search filter
+    if (keyword) {
+        const searchRegex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+        filtered = filtered.filter(img => {
+            return img.keywords && img.keywords.some(p => searchRegex.test(p.className));
+        });
+    }
+    
+    // If no images match all filters
+    if (filtered.length === 0) {
+        statusDiv.textContent = 'NO_MATCHES';
+        displayImages([]);
+        return;
+    }
+    
+    // If filtered, re-cluster
+    if (filtered.length < images.length) {
+        statusDiv.textContent = `CLUSTERING: ${filtered.length} MATCHES`;
+        setLoading(true);
+        
+        const matchedImages = filtered.map((img, i) => ({ ...img, originalIndex: i }));
+        const matchedVectors = matchedImages.filter(img => img.features).map(img => img.features);
+        
+        if (matchedVectors.length > 1) {
+            const gridSize = Math.ceil(Math.sqrt(matchedVectors.length) * 1.5);
+            const tempSom = new SimpleSOM(gridSize, gridSize, 1, matchedVectors[0].length, Math.min(500, matchedVectors.length * 10));
+            await tempSom.trainAsync(matchedVectors);
+            matchedImages.forEach((img) => {
+                if (img.features) {
+                    const pos = tempSom.getBMU(img.features);
+                    img.xSearch = pos.x;
+                    img.ySearch = pos.y;
+                }
+            });
+        } else {
+            matchedImages.forEach(img => { img.xSearch = 0; img.ySearch = 0; });
+        }
+        
+        currentVisibleImages = matchedImages;
+        displayFilteredImages(matchedImages);
+        statusDiv.textContent = `FILTERED: ${filtered.length}`;
+        setLoading(false);
+        centerMap();
+    } else {
+        // Show all images with original layout
+        currentVisibleImages = images;
+        displayImages(images);
+        statusDiv.textContent = 'SYSTEM_READY';
+    }
+}
+
+// Helper to display filtered/searched images
+function displayFilteredImages(matchedImages) {
+    mapContainer.innerHTML = '';
+    imageNodeElements = [];
+    
+    const gridSize = Math.ceil(Math.sqrt(matchedImages.length) * 1.5);
+    const cellW = 4000 / (gridSize + 2);
+    const cellH = 4000 / (gridSize + 2);
+    const fragment = document.createDocumentFragment();
+    
+    matchedImages.forEach((img, index) => {
+        const el = document.createElement('div');
+        el.className = 'image-node';
+        el.id = `node-${img.originalIndex}`;
+        el.style.width = `${cellW}px`;
+        el.style.height = `${cellH}px`;
+        
+        const x = (img.xSearch || 0) * cellW;
+        const y = (img.ySearch || 0) * cellH;
+        
+        el.style.setProperty('--tx', `${x}px`);
+        el.style.setProperty('--ty', `${y}px`);
+        el.style.setProperty('--tz', '0px');
+        el._tz_val = 0;
+        el._visible = true;
+        
+        el.onmouseenter = () => {
+            hoveredIndex = index;
+            let content = `ID: ${img.name.toUpperCase()}<br>`;
+            if (img.keywords && img.keywords.length > 0) {
+                const tags = img.keywords.map(k => k.className.toUpperCase()).join(', ');
+                content += `TAGS: ${tags}<br>`;
+            }
+            if (img.aestheticScore !== undefined && img.aestheticScore !== null) {
+                const score = img.aestheticScore.toFixed(2);
+                const stars = '★'.repeat(Math.round(img.aestheticScore / 2));
+                content += `AESTHETIC: ${score}/10 ${stars}<br>`;
+            }
+            if (img.palette && img.palette.length > 0) {
+                content += `PALETTE:<br>`;
+                content += `<div class="palette-container">`;
+                img.palette.forEach(c => {
+                    content += `<div class="palette-swatch" style="background: rgb(${c[0]},${c[1]},${c[2]})" title="RGB: ${c.join(',')}"></div>`;
+                });
+                content += `</div>`;
+            }
+            content += `POS: [${Math.round(x)},${Math.round(y)},0]`;
+            semanticInfoDiv.innerHTML = content;
+            el.classList.add('is-hovered');
+            
+            const previewImg = document.getElementById('preview-img');
+            const previewPlaceholder = document.getElementById('preview-placeholder');
+            if (previewImg && previewPlaceholder) {
+                const imageUrl = isElectron ? `file:///${img.path.replace(/\\/g, '/')}` : (img.url || img.thumbUrl);
+                const tempImg = new Image();
+                tempImg.onload = () => {
+                    previewImg.src = imageUrl;
+                    previewImg.style.display = 'block';
+                    previewPlaceholder.style.display = 'none';
+                };
+                tempImg.src = imageUrl;
+            }
+        };
+        
+        el.onmouseleave = () => {
+            hoveredIndex = -1;
+            el.classList.remove('is-hovered');
+            semanticInfoDiv.textContent = 'Hover over an image to see details...';
+            const previewImg = document.getElementById('preview-img');
+            const previewPlaceholder = document.getElementById('preview-placeholder');
+            if (previewImg && previewPlaceholder) {
+                previewImg.style.display = 'none';
+                previewPlaceholder.style.display = 'block';
+                previewImg.src = '';
+            }
+        };
+        
+        el.ondblclick = (e) => {
+            e.stopPropagation();
+            showLightbox(index);
+        };
+        
+        const imageElement = document.createElement('img');
+        if (isElectron && !img.thumbnailData) {
+            imageElement.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150"%3E%3Crect fill="%23222" width="150" height="150"/%3E%3C/svg%3E';
+            window.electronAPI.getImageData(img.path).then(result => {
+                img.thumbnailData = result.dataUrl;
+                imageElement.src = result.dataUrl;
+            });
+        } else if (isElectron && img.thumbnailData) {
+            imageElement.src = img.thumbnailData;
+        } else {
+            imageElement.src = img.thumbUrl;
+        }
+        imageElement.loading = 'lazy';
+        el.appendChild(imageElement);
+        fragment.appendChild(el);
+        imageNodeElements.push(el);
+    });
+    
+    mapContainer.appendChild(fragment);
+    mapContainer.className = '';
+}

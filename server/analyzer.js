@@ -10,6 +10,7 @@ const { CANDIDATE_LABELS, cleanLabel } = require('./labels');
 let visionSession = null;
 let textSession = null;
 let dinoSession = null; // DINOv2 for visual similarity
+let aestheticSession = null; // Aesthetic Predictor V2.5
 let hardwareProvider = 'cpu';
 let clipTokenizer = null;
 let AutoTokenizer = null;
@@ -23,13 +24,17 @@ let cachedCandidateLabels = null;
 const MODEL_URLS = {
     vision: 'https://huggingface.co/Xenova/siglip-base-patch16-224/resolve/main/onnx/vision_model.onnx',
     text: 'https://huggingface.co/Xenova/siglip-base-patch16-224/resolve/main/onnx/text_model.onnx',
-    dino: 'https://huggingface.co/Xenova/dinov2-small/resolve/main/onnx/model.onnx'
+    dino: 'https://huggingface.co/Xenova/dinov2-small/resolve/main/onnx/model.onnx',
+    // Aesthetic Predictor V2.5 - Uses raw image input (224x224)
+    // Official ONNX conversion from fsw on Hugging Face
+    aesthetic: 'https://huggingface.co/fsw/aesthetic-predictor-v2-5_onnx/resolve/main/aesthetic_predictor_v2_5.onnx'
 };
 
 const MODELS_DIR = path.join(__dirname, '..', 'models');
 const VISION_MODEL_PATH = path.join(MODELS_DIR, 'siglip_vision.onnx');
 const TEXT_MODEL_PATH = path.join(MODELS_DIR, 'siglip_text.onnx');
 const DINO_MODEL_PATH = path.join(MODELS_DIR, 'dinov2_small.onnx');
+const AESTHETIC_MODEL_PATH = path.join(MODELS_DIR, 'aesthetic_predictor.onnx');
 const TEMP_DIR = path.join(__dirname, '../temp_frames');
 
 // Ensure models directory exists
@@ -142,6 +147,17 @@ async function loadModel() {
         await downloadModel(MODEL_URLS.vision, VISION_MODEL_PATH);
         await downloadModel(MODEL_URLS.text, TEXT_MODEL_PATH);
         await downloadModel(MODEL_URLS.dino, DINO_MODEL_PATH);
+        
+        // Aesthetic model is optional
+        if (MODEL_URLS.aesthetic && fs.existsSync(AESTHETIC_MODEL_PATH)) {
+            console.log('Aesthetic model available');
+        } else if (MODEL_URLS.aesthetic) {
+            try {
+                await downloadModel(MODEL_URLS.aesthetic, AESTHETIC_MODEL_PATH);
+            } catch (e) {
+                console.warn('Aesthetic model not available, continuing without it:', e.message);
+            }
+        }
 
         const executionProviders = getExecutionProviders();
         console.log('Using execution providers:', executionProviders);
@@ -164,6 +180,22 @@ async function loadModel() {
         });
         console.log('DINOv2 model loaded (Visual Expert)');
 
+        // Load Aesthetic Predictor (optional) for quality scoring
+        if (fs.existsSync(AESTHETIC_MODEL_PATH)) {
+            try {
+                aestheticSession = await ort.InferenceSession.create(AESTHETIC_MODEL_PATH, {
+                    executionProviders: executionProviders
+                });
+                console.log('Aesthetic Predictor loaded');
+            } catch (e) {
+                console.warn('Could not load aesthetic model:', e.message);
+                aestheticSession = null;
+            }
+        } else {
+            console.log('Aesthetic Predictor not available (feature disabled)');
+            aestheticSession = null;
+        }
+
         // Load the proper SigLIP tokenizer
         await loadTokenizer();
 
@@ -173,10 +205,18 @@ async function loadModel() {
         console.log('Text labels pre-encoded and cached');
 
         console.log(`Hardware acceleration: ${hardwareProvider}`);
-        console.log('=== DUAL MODEL SYSTEM READY ===');
+        const modelCount = aestheticSession ? 'TRIPLE' : 'DUAL';
+        console.log(`=== ${modelCount} MODEL SYSTEM READY ===`);
         console.log('  SigLIP: Semantic understanding & tags');
         console.log('  DINOv2: Visual similarity (color, texture, style)');
-        return { hardwareProvider };
+        if (aestheticSession) {
+            console.log('  Aesthetic Predictor: Quality scoring');
+        }
+        return { 
+            hardwareProvider,
+            modelSystem: modelCount,
+            hasAestheticModel: !!aestheticSession
+        };
     } catch (error) {
         console.error('Error loading models:', error);
         throw error;
@@ -264,6 +304,36 @@ async function preprocessImageDINO(imagePath) {
         return tensor;
     } catch (error) {
         console.error('Error preprocessing image for DINO:', error);
+        throw error;
+    }
+}
+
+// Preprocess image for Aesthetic Predictor (384x384, SigLIP normalization)
+async function preprocessImageAesthetic(imagePath) {
+    try {
+        // Aesthetic model preprocessing: resize to 384x384, normalize with mean=0.5, std=0.5
+        const { data, info } = await sharp(imagePath)
+            .resize(384, 384, { fit: 'cover' })
+            .removeAlpha()
+            .raw()
+            .toBuffer({ resolveWithObject: true });
+
+        // Convert to float32 and normalize
+        const float32Data = new Float32Array(3 * 384 * 384);
+        const mean = 0.5;
+        const std = 0.5;
+
+        for (let i = 0; i < 384 * 384; i++) {
+            // RGB -> normalized channels
+            float32Data[i] = (data[i * 3] / 255.0 - mean) / std; // R
+            float32Data[384 * 384 + i] = (data[i * 3 + 1] / 255.0 - mean) / std; // G
+            float32Data[384 * 384 * 2 + i] = (data[i * 3 + 2] / 255.0 - mean) / std; // B
+        }
+
+        const tensor = new ort.Tensor('float32', float32Data, [1, 3, 384, 384]);
+        return tensor;
+    } catch (error) {
+        console.error('Error preprocessing image for aesthetic model:', error);
         throw error;
     }
 }
@@ -579,6 +649,38 @@ function getDominantColors(pixelData, pixelCount, k = 5, maxIterations = 10) {
         .filter(c => !isNaN(c[0]) && c.length === 3);
 }
 
+// Predict aesthetic score using Aesthetic Predictor V2.5
+// Takes raw image input (384x384 tensor)
+async function predictAestheticScore(imagePath) {
+    try {
+        if (!aestheticSession) {
+            return null;
+        }
+        
+        // Preprocess image for aesthetic model (384x384, normalized)
+        const imageTensor = await preprocessImageAesthetic(imagePath);
+        
+        const feeds = { input: imageTensor };
+        const results = await aestheticSession.run(feeds);
+        
+        // Get the aesthetic score (output is typically a single value or logits)
+        const output = results.output || results.logits || Object.values(results)[0];
+        const scoreData = Array.from(output.data);
+        
+        // If output is a single value, use it directly; if multiple values, take the first
+        const rawScore = scoreData.length === 1 ? scoreData[0] : scoreData[0];
+        
+        // Normalize score to 0-10 range (aesthetic models typically output 0-10 or similar)
+        // Clamp between 0 and 10
+        const aestheticScore = Math.max(0, Math.min(10, rawScore));
+        
+        return aestheticScore;
+    } catch (error) {
+        console.error('Error predicting aesthetic score:', error);
+        return null;
+    }
+}
+
 // Extract dominant color
 async function extractColor(imagePath) {
     try {
@@ -660,6 +762,9 @@ async function extractFeatures(imagePath) {
         // Extract DINOv2 features (visual: color, texture, style)
         const visualFeatures = await extractVisualFeatures(sourceImage);
         
+        // Predict aesthetic score using raw image input
+        const aestheticScore = await predictAestheticScore(sourceImage);
+        
         // Extract keywords using zero-shot classification
         let keywords = await classifyImage(sourceImage);
         
@@ -680,6 +785,7 @@ async function extractFeatures(imagePath) {
         return {
             features,           // SigLIP embeddings for semantic understanding
             visualFeatures,     // DINOv2 embeddings for visual similarity
+            aestheticScore,     // Quality score (0-10)
             keywords,
             color: colorData ? colorData.color : null,
             colorVector: colorData ? colorData.colorVector : null,

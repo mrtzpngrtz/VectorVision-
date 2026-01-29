@@ -35,6 +35,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     removeAnalysisProgressListener: () => {
         ipcRenderer.removeAllListeners('analysis-progress');
     },
+    
+    // Listen for model system info
+    onModelSystemInfo: (callback) => {
+        ipcRenderer.on('model-system-info', (event, data) => callback(data));
+    },
 
     // Clipboard operations
     copyToClipboard: (imagePath) => ipcRenderer.invoke('copy-to-clipboard', imagePath),

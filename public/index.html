@@ -80,6 +80,7 @@
                     <div class="loader"></div>
                     <div id="status" class="status-text">Ready</div>
                     <div id="status-description" class="status-description">Preparing to process images...</div>
+                    <div id="model-system-status" style="font-family: 'Roboto Mono', monospace; font-size: 0.7rem; color: #ffaa00; opacity: 0.8; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; margin-top: 10px; display: none;">LOADING...</div>
                     <div id="status-progress">
                         <div class="progress-bar-container">
                             <div class="progress-bar" id="progress-bar"></div>
@@ -129,13 +130,21 @@
                             <button onclick="filterByMediaType('static')" id="media-static" class="radio-btn">Static</button>
                         </div>
                         
-                        <div class="input-group">
-                            <input type="text" id="search-input" placeholder="Search tags...">
-                            <button onclick="searchImages()" class="icon-btn">→</button>
-                            <button onclick="clearAll()" class="icon-btn">✕</button>
-                        </div>
-                        
-                        <div id="color-filter-section" style="margin-top: 10px; display: none;">
+                <div class="input-group">
+                    <input type="text" id="search-input" placeholder="Search tags...">
+                    <button onclick="searchImages()" class="icon-btn">→</button>
+                    <button onclick="clearAll()" class="icon-btn">✕</button>
+                </div>
+                
+                <div id="score-filter-section" style="margin-top: 10px;">
+                    <div class="section-label" style="font-size: 0.7rem; opacity: 0.6; margin-bottom: 5px;">AESTHETIC SCORE</div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <input type="range" id="score-slider" min="0" max="10" step="0.5" value="0" style="flex: 1;">
+                        <span id="score-value" style="font-family: 'Roboto Mono', monospace; font-size: 0.75rem; min-width: 50px;">0+</span>
+                    </div>
+                </div>
+                
+                <div id="color-filter-section" style="margin-top: 10px; display: none;">
                             <div class="section-label" style="font-size: 0.7rem; opacity: 0.6; margin-bottom: 5px;">TOP COLORS</div>
                             <div id="color-palette" class="palette-container" style="flex-wrap: wrap;"></div>
                         </div>

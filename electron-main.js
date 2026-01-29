@@ -159,7 +159,14 @@ ipcMain.handle('delete-library-db', async (event, libraryId) => {
 // Analyze images with native CLIP
 ipcMain.handle('analyze-images', async (event, imagePaths, forceReloadLabels = false) => {
     try {
-        await analyzer.loadModel();
+        const modelInfo = await analyzer.loadModel();
+        
+        // Send model system info to frontend
+        event.sender.send('model-system-info', {
+            modelSystem: modelInfo.modelSystem,
+            hasAestheticModel: modelInfo.hasAestheticModel,
+            hardwareProvider: modelInfo.hardwareProvider
+        });
         
         // Reload labels if requested (for Force Rescan after editing labels.js)
         if (forceReloadLabels) {
@@ -181,7 +188,8 @@ ipcMain.handle('analyze-images', async (event, imagePaths, forceReloadLabels = f
                         keywords: result.keywords,
                         color: result.color,
                         colorVector: result.colorVector,
-                        palette: result.palette
+                        palette: result.palette,
+                        aestheticScore: result.aestheticScore
                     });
                     
                     // Send progress update WITH keywords
