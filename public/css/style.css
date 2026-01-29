@@ -24,7 +24,7 @@
     --active-bg: rgba(255, 255, 255, 0.15);
     
     /* Layout */
-    --sidebar-width: 300px;
+    --sidebar-width: 260px;
     --sidebar-bg: var(--surface-1);
 }
 
@@ -89,7 +89,7 @@ body.ui-hidden #sidebar-right {
 }
 
 .sidebar-header {
-    padding: 20px;
+    padding: 10px 12px;
     border-bottom: 1px solid var(--border);
     background: var(--surface-0);
     flex-shrink: 0;
@@ -120,7 +120,7 @@ body.ui-hidden #sidebar-right {
 }
 
 .sidebar-footer {
-    padding: 20px;
+    padding: 10px 12px;
     border-top: 1px solid var(--border);
     flex-shrink: 0;
     background: var(--surface-0);
@@ -129,29 +129,29 @@ body.ui-hidden #sidebar-right {
 .app-title {
     font-family: 'Roboto Mono', monospace;
     font-weight: 700;
-    font-size: 1rem;
-    letter-spacing: 2px;
+    font-size: 0.8rem;
+    letter-spacing: 1.5px;
     margin: 0;
 }
 
 .sidebar-section {
-    padding: 20px;
+    padding: 10px 12px;
     border-bottom: 1px solid var(--border);
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 6px;
     flex-shrink: 0; /* Prevent shrinking */
 }
 
 .section-label {
-    font-size: 0.85rem;
+    font-size: 0.7rem;
     font-weight: 700;
     font-family: 'Roboto Mono', monospace;
     text-transform: uppercase;
-    letter-spacing: 1.5px;
+    letter-spacing: 1.2px;
     color: var(--fg);
     opacity: 0.8;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
     cursor: pointer;
     user-select: none;
     display: flex;
@@ -166,7 +166,7 @@ body.ui-hidden #sidebar-right {
 .section-content {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 6px;
 }
 
 .section-content.collapsed {
@@ -184,8 +184,8 @@ body.ui-hidden #sidebar-right {
 .radio-group-vertical .radio-btn {
     border: none;
     border-bottom: 1px solid var(--border);
-    padding: 10px 12px;
-    font-size: 0.75rem;
+    padding: 6px 10px;
+    font-size: 0.65rem;
     font-family: 'Roboto Mono', monospace;
     font-weight: 600;
     text-transform: uppercase;
@@ -218,8 +218,8 @@ body.ui-hidden #sidebar-right {
 
 .radio-group-horizontal .radio-btn {
     flex: 1;
-    padding: 6px 8px;
-    font-size: 0.7rem;
+    padding: 5px 6px;
+    font-size: 0.62rem;
     border: 1px solid var(--border);
     border-radius: 2px;
     background: var(--surface-2);
@@ -251,10 +251,10 @@ body.ui-hidden #sidebar-right {
     flex: 1;
     border: none;
     background: transparent;
-    padding: 10px;
+    padding: 7px 8px;
     color: var(--fg);
     font-family: 'Roboto Mono', monospace;
-    font-size: 0.8125rem;
+    font-size: 0.7rem;
     min-width: 0;
 }
 
@@ -1324,4 +1324,89 @@ button:disabled {
     opacity: 0.3;
     cursor: not-allowed;
     pointer-events: none;
+}
+
+/* ============================================
+   COMPACT LAYOUT ENHANCEMENTS
+   ============================================ */
+
+/* Grid layout for sorting buttons */
+.radio-group-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    padding: 4px;
+}
+
+.radio-group-grid .radio-btn {
+    padding: 6px 8px;
+    font-size: 0.62rem;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    background: var(--surface-2);
+    color: var(--fg);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Roboto Mono', monospace;
+    font-weight: 600;
+    text-transform: uppercase;
+    text-align: center;
+}
+
+.radio-group-grid .radio-btn:hover:not(.active) {
+    background: var(--hover-bg);
+}
+
+.radio-group-grid .radio-btn.active {
+    background: var(--fg);
+    color: var(--bg);
+}
+
+/* Compact secondary button */
+.secondary-btn.compact {
+    padding: 5px 8px;
+    font-size: 0.62rem;
+}
+
+/* Smaller compact primary button */
+.primary-btn.compact {
+    padding: 6px 10px !important;
+    font-size: 0.65rem !important;
+}
+
+/* Smaller icon buttons */
+.input-group .icon-btn {
+    width: 32px !important;
+    font-size: 0.85rem !important;
+}
+
+/* Compact wordcloud section */
+#library-wordcloud-section {
+    padding: 10px 12px !important;
+    max-height: 140px !important;
+}
+
+.library-wordcloud {
+    gap: 4px !important;
+}
+
+.wordcloud-tag {
+    font-size: 0.6rem !important;
+    padding: 3px 6px !important;
+}
+
+/* Adjusted positions for narrower sidebar */
+#fps-counter {
+    right: 280px !important;
+}
+
+#zoom-info {
+    right: 344px !important;
+}
+
+#active-tag-display {
+    left: 275px !important;
+    max-width: calc(100vw - 310px) !important;
 }
