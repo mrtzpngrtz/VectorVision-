@@ -74,11 +74,13 @@ function setLoading(active) {
 }
 
 let is3D = false;
-let currentSort = 'semantic'; // 'semantic', 'similarity', 'color', 'grid', 'lightness'
+let currentSort = 'semantic'; // 'semantic', 'similarity', 'color', 'grid', 'lightness', 'vibe'
 let som2D = null;
 let som3D = null;
 let similarityReferenceIndex = null;
 let similarityReferenceImage = null;
+let vibeAnchorStart = null; // First anchor for vibe gradient
+let vibeAnchorEnd = null;   // Second anchor for vibe gradient
 
 function toggleSidebarSection(id) {
     const el = document.getElementById(id);
@@ -1056,17 +1058,30 @@ async function setSorting(mode) {
         similarityInfo.style.display = (mode === 'similarity') ? 'block' : 'none';
     }
     
+    // Update vibe info panel display
+    updateVibeAnchorDisplay();
+    
     if (images.length === 0) return;
     
     if (mode === 'grid') {
         statusDiv.textContent = "MODE_SEQUENTIAL";
+    } else if (mode === 'vibe') {
+        statusDiv.textContent = "MODE_VIBE_GRADIENT";
+        if (!vibeAnchorStart || !vibeAnchorEnd) {
+            statusDiv.textContent = 'SET_VIBE_ANCHORS';
+            setLoading(false);
+            displayImages(hasActiveFilters() ? currentVisibleImages : images);
+            return;
+        }
+        await sortByVibeGradient();
+        return; // sortByVibeGradient handles display
     } else if (mode === 'similarity') {
         // Check if reference image is set before attempting similarity sort
         if (!similarityReferenceImage || !similarityReferenceImage.features) {
             statusDiv.textContent = 'SELECT_REFERENCE_IMAGE';
             setLoading(false);
             // Show current images in semantic mode for now
-            displayImages(images);
+            displayImages(hasActiveFilters() ? currentVisibleImages : images);
             return;
         }
         await sortBySimilarity();
@@ -1086,7 +1101,17 @@ async function setSorting(mode) {
         const trainedCount = images.filter(img => is3D ? img.x3 !== undefined : img.x !== undefined).length;
         if (trainedCount < images.length) is3D ? await train3D() : await train2D();
     }
-    displayImages(images);
+    
+    // Check if we have active filters and apply them, otherwise show all images
+    if (hasActiveFilters()) {
+        await applyFilters();
+    } else {
+        displayImages(images);
+        // Auto-center when switching modes to ensure grid is visible
+        if (!is3D) {
+            centerMap();
+        }
+    }
 }
 
 async function ensureColorData() {
@@ -1242,14 +1267,20 @@ function displayImages(imageList) {
         el.oncontextmenu = (e) => { 
             e.preventDefault(); 
             e.stopPropagation(); 
-            // Set as reference for similarity sorting
-            setReferenceImage(index);
-            statusDiv.textContent = 'REFERENCE_IMAGE_SET';
-            setTimeout(() => {
-                if (statusDiv.textContent === 'REFERENCE_IMAGE_SET') {
-                    statusDiv.textContent = 'SYSTEM_READY';
-                }
-            }, 1500);
+            
+            // Check if Ctrl is pressed for vibe gradient mode
+            if (e.ctrlKey) {
+                setVibeAnchor(index, img);
+            } else {
+                // Set as reference for similarity sorting
+                setReferenceImage(index);
+                statusDiv.textContent = 'REFERENCE_IMAGE_SET';
+                setTimeout(() => {
+                    if (statusDiv.textContent === 'REFERENCE_IMAGE_SET') {
+                        statusDiv.textContent = 'SYSTEM_READY';
+                    }
+                }, 1500);
+            }
         };
         // Track mouse movement for click vs drag detection
         let imageMouseDown = false;
@@ -1367,39 +1398,8 @@ function filterByMediaType(type) {
     const btn = document.getElementById(`media-${type}`);
     if (btn) btn.classList.add('active');
     
-    if (type === 'all') {
-        // Show all images
-        displayImages(images);
-        statusDiv.textContent = `SYSTEM_READY: ${images.length} items`;
-    } else {
-        // Filter by media type
-        statusDiv.textContent = `FILTERING BY ${type.toUpperCase()}...`;
-        setLoading(true);
-        
-        const filtered = images.filter(img => {
-            // Check keywords for media type
-            if (img.keywords && Array.isArray(img.keywords)) {
-                return img.keywords.some(kw => {
-                    const className = kw.className || kw;
-                    return className.toLowerCase() === type;
-                });
-            }
-            return false;
-        });
-        
-        if (filtered.length === 0) {
-            statusDiv.textContent = `NO ${type.toUpperCase()} FOUND`;
-            setLoading(false);
-            displayImages([]);
-            return;
-        }
-        
-        // Display filtered results with their original coordinates
-        statusDiv.textContent = `SHOWING ${type.toUpperCase()}: ${filtered.length} items`;
-        setLoading(false);
-        displayImages(filtered);
-        centerMap();
-    }
+    // Apply all filters together
+    applyFilters();
 }
 
 function clearAll() {
@@ -1434,40 +1434,82 @@ function clearAll() {
 
 async function searchImages() {
     const keyword = document.getElementById('search-input').value.toLowerCase().trim();
-    activeColorFilter = null; // Clear color filter when searching text
     
     // Update active tag display
-    const tagDisplay = document.getElementById('active-tag-display');
-    if (tagDisplay) {
-        // Clear content
-        tagDisplay.innerHTML = '';
-        
-        if (keyword) {
-            const span = document.createElement('span');
-            span.id = 'active-tag-text';
-            
-            // Break into two lines if more than one word
-            const words = keyword.split(' ');
-            if (words.length > 1) {
-                span.innerHTML = words[0] + '<br>' + words.slice(1).join(' ');
-            } else {
-                span.textContent = keyword;
-            }
-            
-            tagDisplay.appendChild(span);
-            
-            const closeBtn = document.createElement('div');
-            closeBtn.id = 'active-tag-close';
-            closeBtn.textContent = '✕';
-            closeBtn.onclick = clearAll;
-            tagDisplay.appendChild(closeBtn);
-            
-            tagDisplay.classList.add('visible');
-        } else {
-            tagDisplay.classList.remove('visible');
-        }
-    }
+    updateActiveTagDisplay();
+    
+    // Apply all filters together
+    await applyFilters();
+}
 
+function updateActiveTagDisplay() {
+    const searchInput = document.getElementById('search-input');
+    const keyword = searchInput ? searchInput.value.toLowerCase().trim() : '';
+    const tagDisplay = document.getElementById('active-tag-display');
+    
+    if (!tagDisplay) return;
+    
+    // Clear content
+    tagDisplay.innerHTML = '';
+    
+    if (keyword) {
+        const span = document.createElement('span');
+        span.id = 'active-tag-text';
+        
+        // Break into two lines if more than one word
+        const words = keyword.split(' ');
+        if (words.length > 1) {
+            span.innerHTML = words[0] + '<br>' + words.slice(1).join(' ');
+        } else {
+            span.textContent = keyword;
+        }
+        
+        tagDisplay.appendChild(span);
+        
+        const closeBtn = document.createElement('div');
+        closeBtn.id = 'active-tag-close';
+        closeBtn.textContent = '✕';
+        closeBtn.onclick = clearAll;
+        tagDisplay.appendChild(closeBtn);
+        
+        tagDisplay.classList.add('visible');
+    } else if (activeColorFilter) {
+        const span = document.createElement('span');
+        span.id = 'active-tag-text';
+        span.textContent = 'COLOR ';
+        
+        const colorCircle = document.createElement('span');
+        colorCircle.style.cssText = `display: inline-block; width: 1em; height: 1em; background-color: rgb(${activeColorFilter.join(',')}); vertical-align: middle; border: 2px solid #fff; margin-left: 8px; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0,0,0,0.5);`;
+        span.appendChild(colorCircle);
+        
+        tagDisplay.appendChild(span);
+        
+        const closeBtn = document.createElement('div');
+        closeBtn.id = 'active-tag-close';
+        closeBtn.textContent = '✕';
+        closeBtn.onclick = clearAll;
+        tagDisplay.appendChild(closeBtn);
+        
+        tagDisplay.classList.add('visible');
+    } else {
+        tagDisplay.classList.remove('visible');
+    }
+}
+
+function hasActiveFilters() {
+    const searchInput = document.getElementById('search-input');
+    const keyword = searchInput ? searchInput.value.toLowerCase().trim() : '';
+    
+    return keyword.length > 0 || 
+           activeColorFilter !== null || 
+           activeMediaFilter !== 'all' || 
+           activeScoreFilter > 0;
+}
+
+async function searchImagesOld() {
+    const keyword = document.getElementById('search-input').value.toLowerCase().trim();
+    activeColorFilter = null; // Clear color filter when searching text
+    
     if (!keyword) { clearAll(); return; }
     
     statusDiv.textContent = 'FILTERING...';
@@ -3151,6 +3193,319 @@ async function applyFilters() {
         displayImages(images);
         statusDiv.textContent = 'SYSTEM_READY';
     }
+}
+
+// Vibe Gradient Functions
+function setVibeAnchor(index, img) {
+    if (!vibeAnchorStart) {
+        vibeAnchorStart = { index, img };
+        statusDiv.textContent = 'VIBE_START_SET';
+        updateVibeAnchorDisplay();
+        setTimeout(() => {
+            if (statusDiv.textContent === 'VIBE_START_SET') {
+                statusDiv.textContent = 'SYSTEM_READY';
+            }
+        }, 1500);
+    } else if (!vibeAnchorEnd) {
+        vibeAnchorEnd = { index, img };
+        statusDiv.textContent = 'VIBE_END_SET';
+        updateVibeAnchorDisplay();
+        setTimeout(() => {
+            if (statusDiv.textContent === 'VIBE_END_SET') {
+                statusDiv.textContent = 'SYSTEM_READY';
+            }
+        }, 1500);
+        
+        // Auto-switch to vibe gradient mode if both anchors are set
+        if (currentSort !== 'vibe') {
+            setSorting('vibe');
+        }
+    } else {
+        // If both are set, replace the start with the current start, and set new end
+        vibeAnchorStart = vibeAnchorEnd;
+        vibeAnchorEnd = { index, img };
+        updateVibeAnchorDisplay();
+        
+        // Re-sort if already in vibe mode
+        if (currentSort === 'vibe') {
+            sortByVibeGradient();
+        }
+    }
+}
+
+function clearVibeAnchors() {
+    vibeAnchorStart = null;
+    vibeAnchorEnd = null;
+    updateVibeAnchorDisplay();
+    statusDiv.textContent = 'VIBE_ANCHORS_CLEARED';
+    setTimeout(() => {
+        if (statusDiv.textContent === 'VIBE_ANCHORS_CLEARED') {
+            statusDiv.textContent = 'SYSTEM_READY';
+        }
+    }, 1500);
+    
+    // Switch back to semantic sort
+    setSorting('semantic');
+}
+
+function updateVibeAnchorDisplay() {
+    const vibeInfo = document.getElementById('vibe-info');
+    const startEl = document.getElementById('vibe-anchor-start');
+    const endEl = document.getElementById('vibe-anchor-end');
+    
+    if (!vibeInfo || !startEl || !endEl) return;
+    
+    if (vibeAnchorStart) {
+        startEl.textContent = `Start: ${vibeAnchorStart.img.name}`;
+    } else {
+        startEl.textContent = 'Start: None (Ctrl+Right-click)';
+    }
+    
+    if (vibeAnchorEnd) {
+        endEl.textContent = `End: ${vibeAnchorEnd.img.name}`;
+    } else {
+        endEl.textContent = 'End: None (Ctrl+Right-click)';
+    }
+    
+    // Show info panel when in vibe mode
+    vibeInfo.style.display = (currentSort === 'vibe') ? 'block' : 'none';
+}
+
+async function sortByVibeGradient() {
+    if (!vibeAnchorStart || !vibeAnchorEnd) {
+        statusDiv.textContent = 'ERR: NEED_TWO_ANCHORS';
+        setLoading(false);
+        setTimeout(() => {
+            statusDiv.textContent = 'SET_VIBE_ANCHORS';
+        }, 2000);
+        return;
+    }
+    
+    if (!vibeAnchorStart.img.features || !vibeAnchorEnd.img.features) {
+        statusDiv.textContent = 'ERR: ANCHOR_MISSING_FEATURES';
+        setLoading(false);
+        return;
+    }
+    
+    statusDiv.textContent = 'CALCULATING_VIBE_GRADIENT';
+    setLoading(true);
+    
+    // Get the "Vibe Embedding" by combining SigLIP (semantic) + DINOv2 (visual)
+    // For now, we'll use just SigLIP features (semantic), but this is where
+    // you'd combine with DINO features for full "vibe space"
+    const startFeatures = vibeAnchorStart.img.features;
+    const endFeatures = vibeAnchorEnd.img.features;
+    
+    // Calculate projection along the "vibe vector" (start → end)
+    const vibeVector = [];
+    for (let i = 0; i < startFeatures.length; i++) {
+        vibeVector.push(endFeatures[i] - startFeatures[i]);
+    }
+    
+    // Normalize the vibe vector
+    let vibeNorm = 0;
+    for (let i = 0; i < vibeVector.length; i++) {
+        vibeNorm += vibeVector[i] * vibeVector[i];
+    }
+    vibeNorm = Math.sqrt(vibeNorm);
+    
+    if (vibeNorm === 0) {
+        statusDiv.textContent = 'ERR: IDENTICAL_ANCHORS';
+        setLoading(false);
+        return;
+    }
+    
+    const normalizedVibeVector = vibeVector.map(v => v / vibeNorm);
+    
+    // Project each image onto the vibe gradient
+    const imagesWithProjection = [];
+    
+    for (let i = 0; i < images.length; i++) {
+        const img = images[i];
+        
+        if (!img.features) {
+            imagesWithProjection.push({ ...img, vibePosition: 0, originalIndex: i });
+            continue;
+        }
+        
+        // Calculate projection: dot product with normalized vibe vector
+        // First, translate to start anchor frame
+        const relativeFeatures = [];
+        for (let j = 0; j < img.features.length; j++) {
+            relativeFeatures.push(img.features[j] - startFeatures[j]);
+        }
+        
+        // Project onto vibe vector
+        let projection = 0;
+        for (let j = 0; j < relativeFeatures.length; j++) {
+            projection += relativeFeatures[j] * normalizedVibeVector[j];
+        }
+        
+        // Normalize to 0-1 range (0 = start anchor, 1 = end anchor)
+        const normalizedPosition = projection / vibeNorm;
+        
+        imagesWithProjection.push({ 
+            ...img, 
+            vibePosition: normalizedPosition, 
+            originalIndex: i 
+        });
+        
+        // Allow UI to update periodically
+        if (i % 50 === 0) {
+            await new Promise(resolve => setTimeout(resolve, 0));
+            const progress = Math.round((i / images.length) * 100);
+            statusDiv.textContent = `CALCULATING_VIBE_GRADIENT: ${progress}%`;
+        }
+    }
+    
+    // Sort by vibe position
+    imagesWithProjection.sort((a, b) => a.vibePosition - b.vibePosition);
+    
+    // Calculate optimal grid dimensions
+    const cols = Math.min(Math.ceil(Math.sqrt(imagesWithProjection.length * 1.5)), 20);
+    
+    // Arrange in a smooth gradient line
+    imagesWithProjection.forEach((img, i) => {
+        img.xVibe = i % cols;
+        img.yVibe = Math.floor(i / cols);
+    });
+    
+    currentVisibleImages = imagesWithProjection;
+    displayVibeGradientImages(imagesWithProjection);
+    
+    statusDiv.textContent = 'VIBE_GRADIENT_ACTIVE';
+    setLoading(false);
+}
+
+function displayVibeGradientImages(imageList) {
+    mapContainer.innerHTML = '';
+    imageNodeElements = [];
+    
+    // Better column calculation - create a more square grid
+    const cols = Math.min(Math.ceil(Math.sqrt(imageList.length * 1.5)), 20);
+    const rows = Math.ceil(imageList.length / cols);
+    
+    // Calculate cell size to maintain reasonable proportions
+    const gridWidth = 4000;
+    const gridHeight = 4000;
+    const cellW = gridWidth / (cols + 2);
+    const cellH = gridHeight / (rows + 2);
+    
+    const fragment = document.createDocumentFragment();
+    
+    imageList.forEach((img, index) => {
+        const el = document.createElement('div');
+        el.className = 'image-node';
+        el.id = `node-${img.originalIndex}`;
+        el.style.width = `${cellW}px`;
+        el.style.height = `${cellH}px`;
+        
+        const x = (img.xVibe || 0) * cellW;
+        const y = (img.yVibe || 0) * cellH;
+        
+        el.style.setProperty('--tx', `${x}px`);
+        el.style.setProperty('--ty', `${y}px`);
+        el.style.setProperty('--tz', '0px');
+        el._tz_val = 0;
+        el._visible = true;
+        
+        el.onmouseenter = () => {
+            hoveredIndex = index;
+            let content = `ID: ${img.name.toUpperCase()}<br>`;
+            
+            // Show vibe position
+            if (img.vibePosition !== undefined) {
+                const vibePercent = (img.vibePosition * 100).toFixed(1);
+                content += `VIBE POSITION: ${vibePercent}%<br>`;
+            }
+            
+            if (img.keywords && img.keywords.length > 0) {
+                const tags = img.keywords.map(k => k.className.toUpperCase()).join(', ');
+                content += `TAGS: ${tags}<br>`;
+            }
+            if (img.aestheticScore !==undefined && img.aestheticScore !== null) {
+                const score = img.aestheticScore.toFixed(2);
+                const stars = '★'.repeat(Math.round(img.aestheticScore / 2));
+                content += `SCORE: ${score}/10 ${stars}<br>`;
+            }
+            if (img.palette && img.palette.length > 0) {
+                content += `PALETTE:<br>`;
+                content += `<div class="palette-container">`;
+                img.palette.forEach(c => {
+                    content += `<div class="palette-swatch" style="background: rgb(${c[0]},${c[1]},${c[2]})" title="RGB: ${c.join(',')}"></div>`;
+                });
+                content += `</div>`;
+            }
+            content += `POS: [${Math.round(x)},${Math.round(y)},0]`;
+            semanticInfoDiv.innerHTML = content;
+            el.classList.add('is-hovered');
+            
+            const previewImg = document.getElementById('preview-img');
+            const previewPlaceholder = document.getElementById('preview-placeholder');
+            if (previewImg && previewPlaceholder) {
+                const imageUrl = isElectron ? `file:///${img.path.replace(/\\/g, '/')}` : (img.url || img.thumbUrl);
+                const tempImg = new Image();
+                tempImg.onload = () => {
+                    previewImg.src = imageUrl;
+                    previewImg.style.display = 'block';
+                    previewPlaceholder.style.display = 'none';
+                };
+                tempImg.src = imageUrl;
+            }
+        };
+        
+        el.onmouseleave = () => {
+            hoveredIndex = -1;
+            el.classList.remove('is-hovered');
+            semanticInfoDiv.textContent = 'Hover over an image to see details...';
+            const previewImg = document.getElementById('preview-img');
+            const previewPlaceholder = document.getElementById('preview-placeholder');
+            if (previewImg && previewPlaceholder) {
+                previewImg.style.display = 'none';
+                previewPlaceholder.style.display = 'block';
+                previewImg.src = '';
+            }
+        };
+        
+        // Ctrl+Right-click to set as new anchor
+        el.oncontextmenu = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.ctrlKey) {
+                setVibeAnchor(img.originalIndex, img);
+            } else {
+                setReferenceImage(img.originalIndex);
+            }
+        };
+        
+        el.ondblclick = (e) => {
+            e.stopPropagation();
+            showLightbox(index);
+        };
+        
+        const imageElement = document.createElement('img');
+        if (isElectron && !img.thumbnailData) {
+            imageElement.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150"%3E%3Crect fill="%23222" width="150" height="150"/%3E%3C/svg%3E';
+            window.electronAPI.getImageData(img.path).then(result => {
+                img.thumbnailData = result.dataUrl;
+                imageElement.src = result.dataUrl;
+            });
+        } else if (isElectron && img.thumbnailData) {
+            imageElement.src = img.thumbnailData;
+        } else {
+            imageElement.src = img.thumbUrl;
+        }
+        imageElement.loading = 'lazy';
+        el.appendChild(imageElement);
+        fragment.appendChild(el);
+        imageNodeElements.push(el);
+    });
+    
+    mapContainer.appendChild(fragment);
+    mapContainer.className = '';
+    
+    // Center the view
+    centerMap();
 }
 
 // Helper to display filtered/searched images

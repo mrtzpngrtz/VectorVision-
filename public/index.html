@@ -43,6 +43,42 @@
                     </div>
                 </div>
 
+                <!-- FILTER -->
+                <div class="sidebar-section" style="border-bottom: none;">
+                    <div class="section-label">SEARCH & FILTER</div>
+                    <div class="section-content">
+                        <div class="section-label" style="font-size: 0.7rem; opacity: 0.6; margin-bottom: 5px;">MEDIA TYPE</div>
+                        <div class="radio-group-horizontal" style="margin-bottom: 10px;">
+                            <button onclick="filterByMediaType('all')" id="media-all" class="radio-btn active">All</button>
+                            <button onclick="filterByMediaType('video')" id="media-video" class="radio-btn">Video</button>
+                            <button onclick="filterByMediaType('static')" id="media-static" class="radio-btn">Static</button>
+                        </div>
+                        
+                <div class="input-group">
+                    <input type="text" id="search-input" placeholder="Search tags...">
+                    <button onclick="searchImages()" class="icon-btn">→</button>
+                    <button onclick="clearAll()" class="icon-btn">✕</button>
+                </div>
+                
+                <div id="score-filter-section" style="margin-top: 10px;">
+                    <div class="section-label" style="font-size: 0.7rem; opacity: 0.6; margin-bottom: 5px;">AESTHETIC SCORE</div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <input type="range" id="score-slider" min="0" max="10" step="0.5" value="0" style="flex: 1;">
+                        <span id="score-value" style="font-family: 'Roboto Mono', monospace; font-size: 0.75rem; min-width: 50px;">0+</span>
+                    </div>
+                </div>
+                
+                <div id="color-filter-section" style="margin-top: 10px; display: none;">
+                            <div class="section-label" style="font-size: 0.7rem; opacity: 0.6; margin-bottom: 5px;">TOP COLORS</div>
+                            <div id="color-palette" class="palette-container" style="flex-wrap: wrap;"></div>
+                        </div>
+
+                        <div id="library-wordcloud-section" style="padding: 0; border: none; margin-top: 10px;">
+                            <div id="library-wordcloud" class="library-wordcloud"></div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- SORT -->
                 <div class="sidebar-section">
                     <div class="section-label">SORTING</div>
@@ -50,6 +86,7 @@
                         <div class="radio-group-vertical">
                             <button onclick="setSorting('semantic')" id="sort-semantic" class="radio-btn active">Semantic (AI)</button>
                             <button onclick="setSorting('similarity')" id="sort-similarity" class="radio-btn">Similarity Sort</button>
+                            <button onclick="setSorting('vibe')" id="sort-vibe" class="radio-btn">Vibe Gradient</button>
                             <button onclick="setSorting('color')" id="sort-color" class="radio-btn">Color Spectrum</button>
                             <button onclick="setSorting('lightness')" id="sort-lightness" class="radio-btn">Lightness</button>
                             <button onclick="setSorting('grid')" id="sort-grid" class="radio-btn">Grid (Date)</button>
@@ -57,6 +94,11 @@
                         <div id="similarity-info" style="display:none; font-size:0.65rem; opacity:0.6; margin-top:8px; padding:8px; background:rgba(255,255,255,0.05); border-radius:4px;">
                             <div id="similarity-ref-name">No reference selected</div>
                             <button onclick="clearSimilarityReference()" class="secondary-btn compact" style="margin-top:4px; width:100%;">Clear Reference</button>
+                        </div>
+                        <div id="vibe-info" style="display:none; font-size:0.65rem; opacity:0.6; margin-top:8px; padding:8px; background:rgba(255,255,255,0.05); border-radius:4px;">
+                            <div id="vibe-anchor-start">Start: None</div>
+                            <div id="vibe-anchor-end" style="margin-top:4px;">End: None</div>
+                            <button onclick="clearVibeAnchors()" class="secondary-btn compact" style="margin-top:4px; width:100%;">Clear Anchors</button>
                         </div>
                     </div>
                 </div>
@@ -125,41 +167,6 @@
             </div>
 
             <div class="sidebar-scroll-area">
-                <!-- FILTER -->
-                <div class="sidebar-section" style="border-bottom: none;">
-                    <div class="section-label">SEARCH & FILTER</div>
-                    <div class="section-content">
-                        <div class="section-label" style="font-size: 0.7rem; opacity: 0.6; margin-bottom: 5px;">MEDIA TYPE</div>
-                        <div class="radio-group-horizontal" style="margin-bottom: 10px;">
-                            <button onclick="filterByMediaType('all')" id="media-all" class="radio-btn active">All</button>
-                            <button onclick="filterByMediaType('video')" id="media-video" class="radio-btn">Video</button>
-                            <button onclick="filterByMediaType('static')" id="media-static" class="radio-btn">Static</button>
-                        </div>
-                        
-                <div class="input-group">
-                    <input type="text" id="search-input" placeholder="Search tags...">
-                    <button onclick="searchImages()" class="icon-btn">→</button>
-                    <button onclick="clearAll()" class="icon-btn">✕</button>
-                </div>
-                
-                <div id="score-filter-section" style="margin-top: 10px;">
-                    <div class="section-label" style="font-size: 0.7rem; opacity: 0.6; margin-bottom: 5px;">AESTHETIC SCORE</div>
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <input type="range" id="score-slider" min="0" max="10" step="0.5" value="0" style="flex: 1;">
-                        <span id="score-value" style="font-family: 'Roboto Mono', monospace; font-size: 0.75rem; min-width: 50px;">0+</span>
-                    </div>
-                </div>
-                
-                <div id="color-filter-section" style="margin-top: 10px; display: none;">
-                            <div class="section-label" style="font-size: 0.7rem; opacity: 0.6; margin-bottom: 5px;">TOP COLORS</div>
-                            <div id="color-palette" class="palette-container" style="flex-wrap: wrap;"></div>
-                        </div>
-
-                        <div id="library-wordcloud-section" style="padding: 0; border: none; margin-top: 10px;">
-                            <div id="library-wordcloud" class="library-wordcloud"></div>
-                        </div>
-                    </div>
-                </div>
             </div>
 
         </div>
