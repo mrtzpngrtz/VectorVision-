@@ -125,6 +125,8 @@ This is not a commercial product. It is a personal tool built through vibecoding
     ```bash
     npm install
     ```
+    
+    **Note:** You may see deprecation warnings for `fluent-ffmpeg`. This package is only used for optional video support and does not affect core functionality. The warnings are safe to ignore.
 
 3.  **Run the desktop app:**
     ```bash
