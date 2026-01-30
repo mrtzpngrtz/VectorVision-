@@ -10,7 +10,7 @@
                                    ░███████
 ```
 
-**High-performance desktop application for AI-powered image exploration and organization**
+**High-performance desktop application for ML-powered image exploration and organization**
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -18,21 +18,32 @@
 └─────────────────────────────────────────────────────────┘
 ```
 
-![UI Preview](screenshot.png)
+**Key Features:**
+- Triple ML models: SigLIP + DINOv2 + Aesthetic Predictor
+- Native GPU acceleration (DirectML/CoreML) - 5-10x faster performance
+- 375+ smart categories for artistic/design/fashion photography
+- Semantic similarity search - Shift+Hover to find visually similar images
+- ML aesthetic scoring (0-10 scale) for every image
+- 2D/3D clustering by semantics, color, or lightness
+- Video support (MP4, WebM) with frame extraction
+- Smart tag-based filtering with word cloud interface
+- 100% private - all ML processing happens locally
+
+![UI Preview](screenshot/screenshot.png)
 
 ## [◉] SCREENSHOTS
 
 ### Overview
-![Application Overview](screenshot_overview.png)
+![Application Overview](screenshot/screenshot_overview.png)
 
 ### Semantic Similarity
-![Semantic Similarity View](screenshot_similarity.png)
-![Semantic Connection](screenshot_semantic_connect.png)
-![Semantic Analysis](screenshotsemantic.png)
-![Semantic Connect Alternative](semantic_connect_2.png)
+![Semantic Similarity View](screenshot/screenshot_similarity.png)
+![Semantic Connection](screenshot/screenshot_semantic_connect.png)
+![Semantic Analysis](screenshot/screenshotsemantic.png)
+![Semantic Connect Alternative](screenshot/semantic_connect_2.png)
 
 ### Tag-Based Filtering
-![Tag Filtering](screenshot_tag.png)
+![Tag Filtering](screenshot/screenshot_tag.png)
 
 ## [◆] ORIGIN STORY
 
@@ -42,14 +53,14 @@ This is not a commercial product. It is a personal tool built through vibecoding
 
 ## [▸] FEATURES
 
-*   **Triple AI Model System**: 
+*   **Triple ML Model System**: 
     *   **SigLIP**: Semantic understanding and zero-shot classification
     *   **DINOv2**: Visual similarity analysis (color, texture, style)
-    *   **Aesthetic Predictor V2.5**: AI-powered quality scoring (0-10 scale)
+    *   **Aesthetic Predictor V2.5**: ML-powered quality scoring (0-10 scale)
 *   **Native GPU Acceleration**: Uses ONNX Runtime with DirectML (Windows) or CoreML (macOS) for 5-10x faster image analysis
 *   **Video Support**: Analyzes MP4 and WebM videos by extracting and processing the first frame (requires FFmpeg)
-*   **AI Semantic Clustering**: Organizes images by visual similarity using SigLIP embeddings and Self-Organizing Maps (SOM)
-*   **Aesthetic Quality Scores**: Each image receives an AI-generated aesthetic score (0-10) with star rating display on hover
+*   **ML Semantic Clustering**: Organizes images by visual similarity using SigLIP embeddings and Self-Organizing Maps (SOM)
+*   **Aesthetic Quality Scores**: Each image receives an ML-generated aesthetic score (0-10) with star rating display on hover
 *   **Library Management**: Multiple libraries with image counts, last updated timestamps, and quick switching
 *   **375+ Smart Categories**: Optimized for artistic/design/fashion photography with tags like:
     *   **Photography**: monochrome, minimalist, abstract, cinematic, editorial, documentary, candid
@@ -60,7 +71,7 @@ This is not a commercial product. It is a personal tool built through vibecoding
     *   **Technical**: bokeh, motion blur, shallow depth of field, macro, wide angle, grain
     *   **Aesthetics**: y2k, vaporwave, cyberpunk, wabi sabi, kinfolk, maximalist, retro
     *   **Color**: specific colors (red, emerald, coral) + color theory (complementary, analogous)
-*   **Multi-Dimensional Sorting**: 2D/3D clustering by AI semantics, color, or lightness
+*   **Multi-Dimensional Sorting**: 2D/3D clustering by ML semantics, color, or lightness
 *   **Informative Progress**: Context-aware loading overlays with detailed descriptions of each processing phase
 *   **Smart Search & Filtering**: 
     *   Type keywords to filter and re-cluster images semantically
@@ -86,7 +97,7 @@ This is not a commercial product. It is a personal tool built through vibecoding
     *   Helvetica/Arial for readable descriptions
     *   Active Tag Display with bold typography
     *   Clean visual hierarchy throughout
-*   **100% Private**: All AI analysis happens locally on your machine - no cloud, no API keys required
+*   **100% Private**: All ML analysis happens locally on your machine - no cloud, no API keys required
 
 ## [■] REQUIREMENTS
 
@@ -146,14 +157,14 @@ This is not a commercial product. It is a personal tool built through vibecoding
 
 -   **Switch Libraries**: Click on any library to load it instantly
 -   **Library Info**: See image count and last updated time for each library
--   **Rescan**: Force re-analysis with updated AI categories (⟳ button)
+-   **Rescan**: Force re-analysis with updated ML categories (⟳ button)
 -   **Rename**: Update library names (✎ button)
 -   **Delete**: Remove library and its database (✕ button)
 
 ### Exploring Your Images
 
 -   **View Modes**: Toggle between 2D Flat and 3D Space
--   **Sorting**: Grid, Semantic (AI clustering), Color, Lightness
+-   **Sorting**: Grid, Semantic (ML clustering), Color, Lightness
 -   **Search & Filter**: 
     -   Type keywords in search box (e.g., "monochrome", "geometric")
     -   Click common tags from word cloud for instant filtering
@@ -176,25 +187,13 @@ This is not a commercial product. It is a personal tool built through vibecoding
 -   `Space + Drag` - Pan mode
 -   `Enter` - Search (when in search field)
 
-## [⚡] PERFORMANCE
-
-Compared to the browser-based version:
-
-| Metric | Browser (WebGPU) | Desktop (DirectML) | Improvement |
-|--------|-----------------|-------------------|-------------|
-| Image/sec | 0.5-1.5 fps | 5-10 fps | **5-10x faster** |
-| Model Load | 30-60s | 5-10s | **3-6x faster** |
-| GPU Usage | 20-40% | 80-95% | **Full utilization** |
-
-*Benchmarks on Windows 11, RTX 3060, 100 images*
-
 ## [⬡] TECHNOLOGIES
 
 *   **Electron**: Cross-platform desktop framework
-*   **ONNX Runtime**: Native AI inference with GPU support (DirectML/CoreML)
+*   **ONNX Runtime**: Native ML inference with GPU support (DirectML/CoreML)
 *   **SigLIP (Base-Patch16-224)**: Google's improved vision-language model for embeddings and zero-shot classification (successor to CLIP)
 *   **DINOv2 (Small)**: Meta's self-supervised vision transformer for visual similarity and feature extraction
-*   **Aesthetic Predictor V2.5**: Specialized model for AI-powered image quality assessment (0-10 scoring)
+*   **Aesthetic Predictor V2.5**: Specialized model for ML-powered image quality assessment (0-10 scoring)
 *   **Sharp**: High-performance Node.js image processing
 *   **FFmpeg**: Video frame extraction for MP4/WebM support
 *   **Self-Organizing Maps**: Unsupervised clustering for spatial layout
@@ -254,7 +253,7 @@ This project uses the following open-source technologies:
 ### Core Technologies
 - **[SigLIP (Base-Patch16-224)](https://huggingface.co/google/siglip-base-patch16-224)** - Google's improved vision-language model for embeddings and zero-shot classification, successor to CLIP (Apache-2.0 License)
 - **[DINOv2 (Small)](https://huggingface.co/facebook/dinov2-small)** - Meta's self-supervised vision transformer for visual similarity analysis (Apache-2.0 License)
-- **[Aesthetic Predictor V2.5](https://huggingface.co/fsw/aesthetic-predictor-v2-5_onnx)** - AI-powered image quality assessment model trained on SigLIP embeddings (Public Domain)
+- **[Aesthetic Predictor V2.5](https://huggingface.co/fsw/aesthetic-predictor-v2-5_onnx)** - ML-powered image quality assessment model trained on SigLIP embeddings (Public Domain)
 - **[ONNX Runtime](https://github.com/microsoft/onnxruntime)** - Microsoft's cross-platform ML inference engine with DirectML/CoreML support (MIT License)
 - **[Electron](https://www.electronjs.org/)** - Cross-platform desktop application framework (MIT License)
 - **[Sharp](https://github.com/lovell/sharp)** - High-performance Node.js image processing library (Apache-2.0 License)
