@@ -29,21 +29,21 @@
 - Smart tag-based filtering with word cloud interface
 - 100% private - all ML processing happens locally
 
-![UI Preview](screenshot/screenshot.png)
+![UI Preview](screenshots/screenshot.png)
 
 ## [◉] SCREENSHOTS
 
 ### Overview
-![Application Overview](screenshot/screenshot_overview.png)
+![Application Overview](screenshots/screenshot_overview.png)
 
 ### Semantic Similarity
-![Semantic Similarity View](screenshot/screenshot_similarity.png)
-![Semantic Connection](screenshot/screenshot_semantic_connect.png)
-![Semantic Analysis](screenshot/screenshotsemantic.png)
-![Semantic Connect Alternative](screenshot/semantic_connect_2.png)
+![Semantic Similarity View](screenshots/screenshot_similarity.png)
+![Semantic Connection](screenshots/screenshot_semantic_connect.png)
+![Semantic Analysis](screenshots/screenshotsemantic.png)
+![Semantic Connect Alternative](screenshots/semantic_connect_2.png)
 
 ### Tag-Based Filtering
-![Tag Filtering](screenshot/screenshot_tag.png)
+![Tag Filtering](screenshots/screenshot_tag.png)
 
 ## [◆] ORIGIN STORY
 
