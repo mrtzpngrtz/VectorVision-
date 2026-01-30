@@ -159,7 +159,8 @@ ipcMain.handle('delete-library-db', async (event, libraryId) => {
 // Analyze images with native CLIP
 ipcMain.handle('analyze-images', async (event, imagePaths, forceReloadLabels = false) => {
     try {
-        const modelInfo = await analyzer.loadModel();
+        // Pass event.sender to loadModel for download progress
+        const modelInfo = await analyzer.loadModel(event.sender);
         
         // Send model system info to frontend
         event.sender.send('model-system-info', {

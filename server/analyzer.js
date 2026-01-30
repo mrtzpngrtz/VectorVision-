@@ -77,7 +77,7 @@ function extractVideoFrame(videoPath) {
 }
 
 // Download model if not exists
-async function downloadModel(url, outputPath) {
+async function downloadModel(url, outputPath, modelName, eventSender) {
     if (fs.existsSync(outputPath)) {
         console.log(`Model already exists: ${outputPath}`);
         return;
@@ -89,7 +89,18 @@ async function downloadModel(url, outputPath) {
     const response = await axios({
         url,
         method: 'GET',
-        responseType: 'stream'
+        responseType: 'stream',
+        onDownloadProgress: (progressEvent) => {
+            if (eventSender && progressEvent.total) {
+                const percentComplete = Math.round((progressEvent.loaded / progressEvent.total) * 100);
+                eventSender.send('model-download-progress', {
+                    modelName,
+                    loaded: progressEvent.loaded,
+                    total: progressEvent.total,
+                    percent: percentComplete
+                });
+            }
+        }
     });
 
     response.data.pipe(writer);
@@ -97,6 +108,9 @@ async function downloadModel(url, outputPath) {
     return new Promise((resolve, reject) => {
         writer.on('finish', () => {
             console.log(`Model downloaded: ${outputPath}`);
+            if (eventSender) {
+                eventSender.send('model-download-complete', { modelName });
+            }
             resolve();
         });
         writer.on('error', reject);
@@ -136,7 +150,7 @@ function getExecutionProviders() {
     }
 }
 
-async function loadModel() {
+async function loadModel(eventSender = null) {
     if (visionSession && textSession && dinoSession) {
         return { hardwareProvider };
     }
@@ -144,16 +158,16 @@ async function loadModel() {
     try {
         // Download models if needed
         console.log('Checking models...');
-        await downloadModel(MODEL_URLS.vision, VISION_MODEL_PATH);
-        await downloadModel(MODEL_URLS.text, TEXT_MODEL_PATH);
-        await downloadModel(MODEL_URLS.dino, DINO_MODEL_PATH);
+        await downloadModel(MODEL_URLS.vision, VISION_MODEL_PATH, 'SigLIP Vision', eventSender);
+        await downloadModel(MODEL_URLS.text, TEXT_MODEL_PATH, 'SigLIP Text', eventSender);
+        await downloadModel(MODEL_URLS.dino, DINO_MODEL_PATH, 'DINOv2', eventSender);
         
         // Aesthetic model is optional
         if (MODEL_URLS.aesthetic && fs.existsSync(AESTHETIC_MODEL_PATH)) {
             console.log('Aesthetic model available');
         } else if (MODEL_URLS.aesthetic) {
             try {
-                await downloadModel(MODEL_URLS.aesthetic, AESTHETIC_MODEL_PATH);
+                await downloadModel(MODEL_URLS.aesthetic, AESTHETIC_MODEL_PATH, 'Aesthetic Predictor', eventSender);
             } catch (e) {
                 console.warn('Aesthetic model not available, continuing without it:', e.message);
             }

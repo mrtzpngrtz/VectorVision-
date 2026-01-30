@@ -474,6 +474,22 @@ async function processImagesNative(toAnalyzeList) {
             hwAccelEl.style.color = '#00ff00';
         }
         
+        // Listen for model download progress
+        if (isElectron) {
+            window.electronAPI.onModelDownloadProgress((progress) => {
+                const { modelName, percent, loaded, total } = progress;
+                const loadedMB = (loaded / 1024 / 1024).toFixed(1);
+                const totalMB = (total / 1024 / 1024).toFixed(1);
+                updateStatus(`DOWNLOADING_${modelName.toUpperCase().replace(/ /g, '_')}: ${percent}%`, 
+                    `Downloading ${modelName}: ${loadedMB}MB / ${totalMB}MB`);
+            });
+            
+            window.electronAPI.onModelDownloadComplete((data) => {
+                updateStatus(`${data.modelName.toUpperCase().replace(/ /g, '_')}_DOWNLOADED`, 
+                    `${data.modelName} downloaded successfully`);
+            });
+        }
+        
         // Listen for model system info
         if (isElectron) {
             window.electronAPI.onModelSystemInfo((info) => {

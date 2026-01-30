@@ -40,6 +40,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onModelSystemInfo: (callback) => {
         ipcRenderer.on('model-system-info', (event, data) => callback(data));
     },
+    
+    // Listen for model download progress
+    onModelDownloadProgress: (callback) => {
+        ipcRenderer.on('model-download-progress', (event, data) => callback(data));
+    },
+    
+    // Listen for model download complete
+    onModelDownloadComplete: (callback) => {
+        ipcRenderer.on('model-download-complete', (event, data) => callback(data));
+    },
 
     // Clipboard operations
     copyToClipboard: (imagePath) => ipcRenderer.invoke('copy-to-clipboard', imagePath),
