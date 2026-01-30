@@ -1,22 +1,27 @@
+# VectorVision
+
 ```
-░██████                                                 ░██    ░██                          ░██                        
-  ░██                                                   ░██    ░██                          ░██                        
-  ░██  ░█████████████   ░██████    ░████████  ░███████  ░██    ░██  ░███████   ░███████  ░████████  ░███████  ░██░████ 
-  ░██  ░██   ░██   ░██       ░██  ░██    ░██ ░██    ░██ ░██    ░██ ░██    ░██ ░██    ░██    ░██    ░██    ░██ ░███     
-  ░██  ░██   ░██   ░██  ░███████  ░██    ░██ ░█████████  ░██  ░██  ░█████████ ░██           ░██    ░██    ░██ ░██      
-  ░██  ░██   ░██   ░██ ░██   ░██  ░██   ░███ ░██          ░██░██   ░██        ░██    ░██    ░██    ░██    ░██ ░██      
-░██████░██   ░██   ░██  ░█████░██  ░█████░██  ░███████     ░███     ░███████   ░███████      ░████  ░███████  ░██      
-                                         ░██                                                                           
-                                   ░███████
+ ██╗   ██╗███████╗ ██████╗████████╗ ██████╗ ██████╗ ██╗   ██╗██╗███████╗██╗ ██████╗ ███╗   ██╗
+ ██║   ██║██╔════╝██╔════╝╚══██╔══╝██╔═══██╗██╔══██╗██║   ██║██║██╔════╝██║██╔═══██╗████╗  ██║
+ ██║   ██║█████╗  ██║        ██║   ██║   ██║██████╔╝██║   ██║██║███████╗██║██║   ██║██╔██╗ ██║
+ ╚██╗ ██╔╝██╔══╝  ██║        ██║   ██║   ██║██╔══██╗╚██╗ ██╔╝██║╚════██║██║██║   ██║██║╚██╗██║
+  ╚████╔╝ ███████╗╚██████╗   ██║   ╚██████╔╝██║  ██║ ╚████╔╝ ██║███████║██║╚██████╔╝██║ ╚████║
+   ╚═══╝  ╚══════╝ ╚═════╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝  ╚═══╝  ╚═╝╚══════╝╚═╝ ╚═════╝ ╚═╝  ╚═══╝
 ```
 
 **High-performance desktop application for ML-powered image exploration and organization**
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  [✓] 100% LOCAL  |  [✓] GPU ACCELERATED  |  [✓] PRIVATE │
+│  [✓] 100% LOCAL  |  [✓] GPU ACCELERATED  |  [✓] PRIVATE│
 └─────────────────────────────────────────────────────────┘
 ```
+
+## [◆] ORIGIN STORY
+
+For a long time I searched for commercial software that could archive images and connect them on a visual and semantic level. I never found the right solution, so I built VectorVision.
+
+This is not a commercial product. It is a personal tool built through vibecoding. I used Visual Studio Code with Gemini 3 and Claude Sonnet to create exactly what I needed for my own workflow. It runs entirely locally and keeps all data private.
 
 **Key Features:**
 - Triple ML models: SigLIP + DINOv2 + Aesthetic Predictor
@@ -44,12 +49,6 @@
 
 ### Tag-Based Filtering
 ![Tag Filtering](screenshots/screenshot_tag.png)
-
-## [◆] ORIGIN STORY
-
-For a long time I searched for commercial software that could archive images and connect them on a visual and semantic level. I never found the right solution, so I built VectorVision.
-
-This is not a commercial product. It is a personal tool built through vibecoding. I used Visual Studio Code with Gemini 3 and Claude Sonnet to create exactly what I needed for my own workflow. It runs entirely locally and keeps all data private.
 
 ## [▸] FEATURES
 
