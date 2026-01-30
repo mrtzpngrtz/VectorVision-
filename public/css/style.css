@@ -1410,3 +1410,93 @@ button:disabled {
     left: 275px !important;
     max-width: calc(100vw - 310px) !important;
 }
+
+/* ============================================
+   CUSTOM RANGE SLIDER
+   ============================================ */
+
+input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    background: var(--surface-2);
+    outline: none;
+    border: 1px solid var(--border);
+    cursor: pointer;
+}
+
+/* Webkit (Chrome, Safari, Edge) */
+input[type="range"]::-webkit-slider-track {
+    width: 100%;
+    height: 4px;
+    background: var(--surface-2);
+    border: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--fg);
+    cursor: pointer;
+    border: none;
+    transition: transform 0.2s;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+/* Firefox */
+input[type="range"]::-moz-range-track {
+    width: 100%;
+    height: 4px;
+    background: var(--surface-2);
+    border: none;
+}
+
+input[type="range"]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: var(--fg);
+    cursor: pointer;
+    border: none;
+    border-radius: 0;
+    transition: transform 0.2s;
+}
+
+input[type="range"]::-moz-range-thumb:hover {
+    transform: scale(1.2);
+}
+
+/* Microsoft Edge */
+input[type="range"]::-ms-track {
+    width: 100%;
+    height: 4px;
+    background: transparent;
+    border-color: transparent;
+    color: transparent;
+}
+
+input[type="range"]::-ms-fill-lower {
+    background: var(--surface-2);
+}
+
+input[type="range"]::-ms-fill-upper {
+    background: var(--surface-2);
+}
+
+input[type="range"]::-ms-thumb {
+    width: 16px;
+    height: 16px;
+    background: var(--fg);
+    cursor: pointer;
+    border: none;
+    transition: transform 0.2s;
+}
+
+input[type="range"]::-ms-thumb:hover {
+    transform: scale(1.2);
+}

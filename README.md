@@ -20,6 +20,20 @@
 
 ![UI Preview](screenshot.png)
 
+## [◉] SCREENSHOTS
+
+### Overview
+![Application Overview](screenshot_overview.png)
+
+### Semantic Similarity
+![Semantic Similarity View](screenshot_similarity.png)
+![Semantic Connection](screenshot_semantic_connect.png)
+![Semantic Analysis](screenshotsemantic.png)
+![Semantic Connect Alternative](semantic_connect_2.png)
+
+### Tag-Based Filtering
+![Tag Filtering](screenshot_tag.png)
+
 ## [◆] ORIGIN STORY
 
 For a long time I searched for commercial software that could archive images and connect them on a visual and semantic level. I never found the right solution, so I built VectorVision.

@@ -2114,6 +2114,12 @@ async function loadSelectedLibrary() {
     await switchLibrary(selectedLibraryId);
 }
 
+// Helper function to load library from modal button
+async function loadLibraryFromModal(libraryId) {
+    selectedLibraryId = libraryId;
+    await loadSelectedLibrary();
+}
+
 function renderLibrariesList() {
     const currentLibDisplay = document.getElementById('current-library-display');
     const selectionListEl = document.getElementById('selection-libraries-list');
@@ -2205,7 +2211,7 @@ function renderLibrariesList() {
 
             libraries.forEach(lib => {
                 const item = document.createElement('div');
-                item.className = 'selection-item';
+                item.className = 'library-item'; // Changed to match sidebar style
                 if (lib.id === selectedLibraryId) {
                     item.classList.add('active');
                 }
@@ -2218,19 +2224,25 @@ function renderLibrariesList() {
                 }
                 
                 item.innerHTML = `
-                    <div class="selection-item-info">
-                        <span class="selection-item-name">${lib.name}</span>
-                        <span class="selection-item-path">${lib.path}</span>
-                        <span class="selection-item-meta">${imageCount} images • Last opened: ${lastUpdatedText}</span>
+                    <div class="library-info">
+                        <div class="library-name">${lib.name}</div>
+                        <div class="library-path">${lib.path}</div>
+                        <div class="library-updated">${imageCount} images • Last opened: ${lastUpdatedText}</div>
+                    </div>
+                    <div class="library-actions">
+                        <button class="library-btn" onclick="event.stopPropagation(); loadLibraryFromModal('${lib.id}')">Load</button>
+                        <button class="library-btn" onclick="event.stopPropagation(); renameLibrary('${lib.id}')">Rename</button>
+                        <button class="library-btn delete-btn" onclick="event.stopPropagation(); deleteLibrary('${lib.id}')">Delete</button>
                     </div>
                 `;
                 
-                item.onclick = () => {
+                const infoDiv = item.querySelector('.library-info');
+                infoDiv.onclick = () => {
                     selectedLibraryId = lib.id;
                     renderLibrariesList(); // Re-render to update selection UI
                 };
                 
-                item.ondblclick = () => {
+                infoDiv.ondblclick = () => {
                     selectedLibraryId = lib.id;
                     loadSelectedLibrary();
                 };
@@ -3084,16 +3096,29 @@ if (isElectron) {
 // Initialize popup
 initStartPopup();
 
-// Score filter setup
+// Score filter setup with debouncing
 const scoreSlider = document.getElementById('score-slider');
 const scoreValue = document.getElementById('score-value');
+
+// Debounce function to prevent lag
+let filterDebounceTimer = null;
+function debounceFilters(delay = 300) {
+    if (filterDebounceTimer) {
+        clearTimeout(filterDebounceTimer);
+    }
+    filterDebounceTimer = setTimeout(() => {
+        applyFilters();
+    }, delay);
+}
 
 if (scoreSlider && scoreValue) {
     scoreSlider.addEventListener('input', (e) => {
         const value = parseFloat(e.target.value);
         scoreValue.textContent = value > 0 ? `${value}+` : 'All';
         activeScoreFilter = value;
-        applyFilters();
+        
+        // Update UI immediately but debounce the heavy filtering operation
+        debounceFilters();
     });
 }
 
