@@ -10,7 +10,7 @@
    ╚═══╝  ╚══════╝ ╚═════╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝  ╚═══╝  ╚═╝╚══════╝╚═╝ ╚═════╝ ╚═╝  ╚═══╝
 ```
 
-**High-performance desktop application for ML-powered image exploration and organization**
+**Local desktop application for ML-powered image exploration and organization.**
 
 ```
 ┌─────────────────────────────────────────────────────────┐
